@@ -38,7 +38,7 @@ class MyMongoDB:
 			List all cities of the Database
 		"""
 		self.list_cities = self.per_bk.distinct('city')
-		pprint(sorted(self.list_cities))
+		print(sorted(self.list_cities))
 
 	def sort_collection(self):
 		"""
@@ -84,12 +84,13 @@ class MyMongoDB:
 				'AltTransport':alt_trans
 			}
 			self.obj[c] = tmp_obj
-			# self.obj[c]['BookingsDate'] = bk_in_date
-			# self.obj[c]['AltTransport'] = alt_trans
 
 		pprint(self.obj)
 
 	def CDF(self, start, end, cities):
+		"""
+			Calculate the CDF for the cities over the duration of parkings and bookings
+		"""
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
 		fig, axs = plt.subplots(2)
@@ -108,16 +109,13 @@ class MyMongoDB:
 							'$subtract':['$final_time','$init_time']
 						}
 					},
-				},
-				# {
-				# 	'$sort':{'duration':1}
-				# }
+				}
 				]))
 
 			duration_booking = self.per_bk.aggregate([
 				{
 					'$match':{
-						'city':'Torino',
+						'city':c,
 						'init_time':{'$gte':unix_start,'$lte':unix_end}}
 					},
 				{
@@ -126,10 +124,7 @@ class MyMongoDB:
 							'$subtract':['$final_time','$init_time']
 						}
 					},
-				},
-				# {
-				# 	'$sort':{'duration':1}
-				# }
+				}
 				])
 			lst_parking = []
 			lst_booking = []
@@ -151,9 +146,57 @@ class MyMongoDB:
 			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
 			axs[1].plot(np.sort(lst_booking),p)
 			axs[1].grid()
-		# plt.grid()
-		# print(time.time() - start_time)
+
 		plt.show()
+
+	def CDF_weekly(self, start, end, cities):
+		"""	
+			Calculate the CDF over the duratio of parking and booking aggregating for
+			day of the week (or by week)
+		"""
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())
+		# fig, axs = plt.subplots(2)
+		plt.figure()
+		for d in range(7):
+			print(d)
+			duration_parking = (self.per_pk.aggregate([
+				{
+					'$match':{
+						'city':'Torino',
+						'init_time':{'$gte':unix_start,'$lte':unix_end}
+						}
+					},
+				{
+
+					'$project':{
+						'duration':{
+							'$subtract':['$final_time','$init_time'],
+						},
+						'dayOfWeek':{'$dayOfWeek':'$init_date'}
+					},
+				},
+				{
+					'$match':{
+						'dayOfWeek':d
+					}
+				}
+				]))
+
+			lst_parking_d = []
+			for i in duration_parking:
+				# print(i)
+				lst_parking_d.append(i['duration'])
+
+			lst_parking_d = np.array(lst_parking_d)/60
+			p = 1. * np.arange(len(lst_parking_d)) / (len(lst_parking_d)-1)
+			# axs[0].plot(np.sort(lst_parking_d),p)
+			# axs[0].grid()	
+			plt.plot(np.sort(lst_parking_d),p,label=d)
+			plt.grid()
+			plt.legend()
+		plt.show()
+								
 
 if __name__ == '__main__':
 
@@ -168,5 +211,6 @@ if __name__ == '__main__':
 
 	# DB.analyze_cities(cities, start, end)
 	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
+	DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 
 
