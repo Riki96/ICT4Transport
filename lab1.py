@@ -89,7 +89,71 @@ class MyMongoDB:
 
 		pprint(self.obj)
 
-	
+	def CDF(self, start, end, cities):
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())
+		fig, axs = plt.subplots(2)
+		start_time = time.time()
+		for c in cities:
+			print(c)
+			duration_parking = (self.per_pk.aggregate([
+				{
+					'$match':{
+						'city':c,
+						'init_time':{'$gte':unix_start,'$lte':unix_end}}
+					},
+				{
+					'$project':{
+						'duration':{
+							'$subtract':['$final_time','$init_time']
+						}
+					},
+				},
+				# {
+				# 	'$sort':{'duration':1}
+				# }
+				]))
+
+			duration_booking = self.per_bk.aggregate([
+				{
+					'$match':{
+						'city':'Torino',
+						'init_time':{'$gte':unix_start,'$lte':unix_end}}
+					},
+				{
+					'$project':{
+						'duration':{
+							'$subtract':['$final_time','$init_time']
+						}
+					},
+				},
+				# {
+				# 	'$sort':{'duration':1}
+				# }
+				])
+			lst_parking = []
+			lst_booking = []
+
+			for i in duration_parking:
+				lst_parking.append(i['duration'])
+				
+			for i in duration_booking:
+				lst_booking.append(i['duration'])
+
+			lst_parking = np.array(lst_parking)/60
+			lst_booking = np.array(lst_booking)/60
+
+			p = 1. * np.arange(len(lst_parking)) / (len(lst_parking)-1)
+			
+			axs[0].plot(np.sort(lst_parking),p)
+			axs[0].grid()
+			
+			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
+			axs[1].plot(np.sort(lst_booking),p)
+			axs[1].grid()
+		# plt.grid()
+		# print(time.time() - start_time)
+		plt.show()
 
 if __name__ == '__main__':
 
@@ -102,7 +166,7 @@ if __name__ == '__main__':
 	start = datetime.date(2017,12,1)
 	end = datetime.date(2017,12,31)
 
-	DB.analyze_cities(cities, start, end)
-	# data = [1, 4, 8]
+	# DB.analyze_cities(cities, start, end)
+	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 
 
