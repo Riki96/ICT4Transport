@@ -21,7 +21,12 @@ class MyMongoDB:
 		self.act_bk = self.db['ActiveBookings']
 		self.act_pk = self.db['ActiveParkings']
 
-		self.obj = {}
+		self.per_bk_enj = self.db['enjoy_PermanentBookings']
+		self.per_pk_enj = self.db['enjoy_PermanentParkings']
+		self.act_bk_enj = self.db['enjoy_ActiveBookings']
+		self.act_pk_enj = self.db['enjoy_ActiveParkings']
+
+		self.container = {}
 
 	def list_documents(self):
 		"""
@@ -31,36 +36,47 @@ class MyMongoDB:
 		self.n_per_pk = self.per_pk.find({}).count()
 		self.n_act_bk = self.act_bk.find({}).count()
 		self.n_act_pk = self.act_pk.find({}).count()
-		print(n_per_bk, n_per_pk, n_act_bk, n_act_pk)
+
+		self.n_per_bk_enj = self.per_bk_enj.find({}).count()
+		self.n_per_pk_enj = self.per_pk_enj.find({}).count()
+		self.n_act_bk_enj = self.act_bk_enj.find({}).count()
+		self.n_act_pk_enj = self.act_pk_enj.find({}).count()
+
+		print(self.n_per_bk, self.n_per_pk, self.n_act_bk, self.n_act_pk)
+		print(self.n_per_bk_enj, self.n_per_pk_enj, self.n_act_bk_enj, self.n_act_pk_enj)
 
 	def list_cities(self):
 		"""
 			List all cities of the Database
 		"""
 		self.list_cities = self.per_bk.distinct('city')
-		print(sorted(self.list_cities))
+		self.list_cities_enj = self.per_pk_enj.distinct('city')
+		pprint(sorted(self.list_cities))
+		pprint(sorted(self.list_cities_enj))
+
+		for l in self.list_cities:
+			print('City:{} - Number:{}'.format(l,self.per_bk.count({'city':l})))
+
+		for l in self.list_cities_enj:
+			print('City:{} \t Number:{}'.format(l,self.per_bk_enj.count({'city':l})))
 
 	def sort_collection(self):
 		"""
 			Sort the collection to see when it started/ended
 			//TODO//
-				Check it is the fastest method and see if it is correct
+				ASK PROFESSOR
 			//TODO//
 		"""
-		pprint(self.per_bk.index_information())
+		# pprint(self.per_bk.index_information())
 		init_sort = self.per_pk.find({'init_time':{'$lt':1481650748}}).sort(
 			'init_time',1)
-		for i in init_sort:
-			pprint(i)
-			self.initial = i['init_time']
-			break
+		
+		print(list(init_sort)[0]['init_date'])
 
-		sort_init = self.per_pk.find({'final_time':{'$gt':1481650748}}).sort(
-			'final_time',-1)
-		for i in sort_init:
-			pprint(i)
-			self.final = i['final_time']
-			break
+		sort_init = self.per_pk.find({'init_time':{'$gt':1500000000}}).sort(
+			'init_time',-1)
+		print(list(sort_init)[0]['final_date'])
+
 
 	def analyze_cities(self, cities, start_date, end_date):
 		"""
@@ -73,19 +89,36 @@ class MyMongoDB:
 		for c in cities:
 			print(c)
 			avb_cars = self.act_pk.count({'city':c})
-			# print('%f cars in %s'%(avb_cars, c))
-			bk_in_date = self.per_bk.count({'city':c, 'init_time':{'$gte':unix_start,'$lt':unix_end}})
+			if c == 'Torino':
+				avb_cars_enj = self.act_pk_enj.count({'city':c})
+			else:
+				avb_cars_enj = ''
+			print('%d cars in %s'%(avb_cars, c))
+			bk_in_date = self.per_bk.count({
+				'city':c,
+				'init_time':{'$gte':unix_start,'$lte':unix_end}})
 			# print('%f cars from %s to %s in %s'%(bk_in_date, start_date, end_date, c))
-			alt_trans = self.per_bk.count({'city':c,'public_transport.duration':{'$ne':-1}})
+			pub_trans = self.per_bk.count({
+				'city':c,
+				'public_transport.duration':{'$ne':-1}})
+			drv_trans = self.per_bk.count({
+				'city':c,
+				'driving.duration':{'$ne':-1}})
+			walk_trans = self.per_bk.count({
+				'city':c,
+				'walking.duration':{'$ne':-1}})
 			# print('%f bookings with alternative mode transportation in %s'%(alt_trans,c))
 			tmp_obj = {
 				'AvailableCars':avb_cars,
+				'AvailableCars_enj':avb_cars_enj,
 				'BookingsDate':bk_in_date,
-				'AltTransport':alt_trans
+				'PublicTransport':pub_trans,
+				'Walking':walk_trans,
+				'Driving':drv_trans
 			}
-			self.obj[c] = tmp_obj
+			self.container[c] = tmp_obj
 
-		pprint(self.obj)
+		pprint(self.container)
 
 	def CDF(self, start, end, cities):
 		"""
@@ -142,11 +175,12 @@ class MyMongoDB:
 			
 			axs[0].plot(np.sort(lst_parking),p)
 			axs[0].grid()
+			axs[0].set_xscale('log')
 			
 			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
 			axs[1].plot(np.sort(lst_booking),p)
 			axs[1].grid()
-
+			axs[0].set_xscale('log')
 		plt.show()
 
 	def CDF_weekly(self, start, end, cities):
@@ -205,12 +239,13 @@ if __name__ == '__main__':
 	DB = MyMongoDB()
 	# DB.list_documents()
 	# DB.list_cities()
+	# DB.sort_collection()
 
 	start = datetime.date(2017,12,1)
 	end = datetime.date(2017,12,31)
 
 	# DB.analyze_cities(cities, start, end)
-	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
-	DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
+	DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
+	# DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 
 
