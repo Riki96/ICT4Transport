@@ -168,8 +168,8 @@ class MyMongoDB:
 			for i in duration_booking:
 				lst_booking.append(i['duration'])
 
-			lst_parking = np.array(lst_parking)/60
-			lst_booking = np.array(lst_booking)/60
+			lst_parking = np.array(lst_parking)
+			lst_booking = np.array(lst_booking)
 
 			p = 1. * np.arange(len(lst_parking)) / (len(lst_parking)-1)
 			
@@ -231,7 +231,35 @@ class MyMongoDB:
 			plt.legend()
 		plt.show()
 								
+	def clean_dataset(self):
+		aggr_by_location = self.per_pk.aggregate([{
+				'$match':{'city':'Torino'}
+			},{
+				'$group':{
+					'_id':'$loc.coordinates',
+					'plates':{
+						'$push':'$plate'
+						}
+				}
+			},
+			# {
+			# 	'$limit':100
+			# },
+			{
+				'$addFields':{
+				'tot':
+					{
+						'$size':'$plates'}
+						}
+			},
+			{
+				'$sort':
+					{
+						'tot':-1}
+			},
+			],allowDiskUse=True)
 
+		pprint(list(aggr_by_location))
 if __name__ == '__main__':
 
 	cities = ['Torino','New York City','Amsterdam']
@@ -243,9 +271,9 @@ if __name__ == '__main__':
 
 	start = datetime.date(2017,12,1)
 	end = datetime.date(2017,12,31)
-
+	DB.clean_dataset()
 	# DB.analyze_cities(cities, start, end)
-	DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
+	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 	# DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 
 
