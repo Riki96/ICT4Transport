@@ -181,7 +181,7 @@ class MyMongoDB:
 			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
 			axs[1].plot(np.sort(lst_booking),p)
 			axs[1].grid()
-			axs[0].set_xscale('log')
+			axs[1].set_xscale('log')
 		plt.show()
 
 	def CDF_weekly(self, start, end, cities):
@@ -231,63 +231,67 @@ class MyMongoDB:
 			plt.legend()
 		plt.show()
 								
-	def clean_dataset(self):
-		aggr_by_location = self.per_pk.aggregate([{
-				'$match':{'city':'Torino'},
-				# '$init_time':
-			},
-			{
-				'$project':{
-					'_id':0,
-					# 'plate':1,
-					# 'final_time':1,
-					# 'init_time':1,
-					'moved':{
-						'$ne':[
-							{'$arrayElemAt':['loc.']}
-						]
-					}
-				}
-			},
-			{
-				'$group':{
-					'_id':'$loc.coordinates',
-					'plates':{
-						'$push':'$plate'
-						},
-					'durations':{
-						'$push':'$duration'
-						}
-					},
-				},
-			{
-				'$limit':200
-			},
-			# {
-			# 	'$addFields':{
-			# 	'tot':
-			# 		{
-			# 			'$size':'$plates'}
-			# 			}
-			# },
-			# {
-			# 	'$sort':
-			# 		{
-			# 			'tot':1}
-			# },
-			],allowDiskUse=True)
+	# def clean_dataset(self):
+	# 	aggr_by_location = self.per_pk.aggregate([{
+	# 			'$match':{'city':'Torino'},
+	# 			# '$init_time':
+	# 		},
+	# 		{
+	# 			'$project':{
+	# 				'_id':0,
+	# 				# 'plate':1,
+	# 				# 'final_time':1,
+	# 				# 'init_time':1,
+	# 				'moved':{
+	# 					'$ne':[
+	# 						{'$arrayElemAt':['loc.']}
+	# 					]
+	# 				}
+	# 			}
+	# 		},
+	# 		{
+	# 			'$group':{
+	# 				'_id':'$loc.coordinates',
+	# 				'plates':{
+	# 					'$push':'$plate'
+	# 					},
+	# 				'durations':{
+	# 					'$push':'$duration'
+	# 					}
+	# 				},
+	# 			},
+	# 		{
+	# 			'$limit':200
+	# 		},
+	# 		# {
+	# 		# 	'$addFields':{
+	# 		# 	'tot':
+	# 		# 		{
+	# 		# 			'$size':'$plates'}
+	# 		# 			}
+	# 		# },
+	# 		# {
+	# 		# 	'$sort':
+	# 		# 		{
+	# 		# 			'tot':1}
+	# 		# },
+	# 		],allowDiskUse=True)
 
-		pprint(list(aggr_by_location))
+	# 	pprint(list(aggr_by_location))
 
 
 	def statistics(self, cities, start, end, bk=True):
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		if bk:
+		fig, ax1 = plt.subplots(4, sharey=True)
+		# print(len(ax1),len(ax2))
+		# exit()
+		for c in cities:
+			print(c)
 			stats_parking = self.per_bk.aggregate([
 				{
 					'$match':{
-						'city':'Torino',
+						'city':c,
 						'init_time':{
 							'$gte':unix_start,
 							'$lte':unix_end
@@ -303,56 +307,12 @@ class MyMongoDB:
 						'day':{'$dayOfMonth':'$init_date'}
 					}
 				},
-				{
-					'$group':{
-						'_id':'$day',
-						'arr':{'$push':'$duration'},
-						'avg':{'$avg':'$duration'},
-						'std':{'$stdDevSamp':'$duration'},
-						'total':{'$sum':1},
-						# 'field':{'$sum':{'$cond':[{'$lt':['$field',5000]},1,0]}}
-					}
-				},
-				{
-					'$sort':{
-						'_id':1
-					}
-				}
-			])
-			# print(len(list(stats_parking)))
-			stats = []
-			plt.figure()
-			for i in stats_parking:
-				# print(float(sum(i['arr']) / len(i['arr'])))
-				med = statistics.median(i['arr'])
-				perc_25 = np.percentile(np.array(i['arr']),25)
-				stats.append((i['avg'],i['std'],med,perc_25))
-
-			plt.plot([x[0] for x in stats], label='avg')
-			plt.plot([x[1] for x in stats], label='std')
-			plt.plot([x[2] for x in stats], label='med')
-			plt.plot([x[3] for x in stats], label='25th perc')
-			plt.legend()
-			plt.grid()
-
-		else:
-			stats_parking = self.per_pk.aggregate([
 				{
 					'$match':{
-						'city':'Torino',
-						'init_time':{
-							'$gte':unix_start,
-							'$lte':unix_end
-						}
-					}
-				},
-				{
-					'$project':{
-						'init_date':1,
 						'duration':{
-							'$subtract':['$final_time','$init_time']
-						},
-						'day':{'$dayOfMonth':'$init_date'}
+							'$lte':180*60,
+							'$gte':3*60
+						}
 					}
 				},
 				{
@@ -362,7 +322,6 @@ class MyMongoDB:
 						'avg':{'$avg':'$duration'},
 						'std':{'$stdDevSamp':'$duration'},
 						'total':{'$sum':1},
-						# 'field':{'$sum':{'$cond':[{'$lt':['$field',5000]},1,0]}}
 					}
 				},
 				{
@@ -373,22 +332,80 @@ class MyMongoDB:
 			])
 			# print(len(list(stats_parking)))
 			stats = []
-			plt.figure()
+			# plt.figure()
 			for i in stats_parking:
-				# print(float(sum(i['arr']) / len(i['arr'])))
 				med = statistics.median(i['arr'])
 				perc_25 = np.percentile(np.array(i['arr']),25)
 				stats.append((i['avg'],i['std'],med,perc_25))
 
-			plt.plot([x[0] for x in stats], label='avg')
-			plt.plot([x[1] for x in stats], label='std')
-			plt.plot([x[2] for x in stats], label='med')
-			plt.plot([x[3] for x in stats], label='25th perc')
-			plt.legend()
-			plt.grid()
+			ax1[0].plot([x[0] for x in stats], label=c)
+			ax1[0].set_title('Average')
+			ax1[1].plot([x[1] for x in stats], label=c)
+			ax1[1].set_title('StandardDeviation')
+			ax1[2].plot([x[2] for x in stats], label=c)
+			ax1[2].set_title('Median')
+			ax1[3].plot([x[3] for x in stats], label=c)
+			ax1[3].set_title('Percentile')
+			# plt.legend()
+			# plt.grid()
+
+		
+			# stats_parking = self.per_pk.aggregate([
+			# 	{
+			# 		'$match':{
+			# 			'city':c,
+			# 			'init_time':{
+			# 				'$gte':unix_start,
+			# 				'$lte':unix_end
+			# 			}
+			# 		}
+			# 	},
+			# 	{
+			# 		'$project':{
+			# 			'init_date':1,
+			# 			'duration':{
+			# 				'$subtract':['$final_time','$init_time']
+			# 			},
+			# 			'day':{'$dayOfMonth':'$init_date'}
+			# 		}
+			# 	},
+			# 	{
+			# 		'$group':{
+			# 			'_id':'$day',
+			# 			'arr':{'$push':'$duration'},
+			# 			'avg':{'$avg':'$duration'},
+			# 			'std':{'$stdDevSamp':'$duration'},
+			# 			'total':{'$sum':1},
+			# 			# 'field':{'$sum':{'$cond':[{'$lt':['$field',5000]},1,0]}}
+			# 		}
+			# 	},
+			# 	{
+			# 		'$sort':{
+			# 			'_id':1
+			# 		}
+			# 	}
+			# ])
+			# # print(len(list(stats_parking)))
+			# stats = []
+			# plt.figure()
+			# for i in stats_parking:
+			# 	# print(float(sum(i['arr']) / len(i['arr'])))
+			# 	med = statistics.median(i['arr'])
+			# 	perc_25 = np.percentile(np.array(i['arr']),25)
+			# 	stats.append((i['avg'],i['std'],med,perc_25))
+
+			# ax2[0].plot([x[0] for x in stats], label='avg')
+			# ax2[1].plot([x[1] for x in stats], label='std')
+			# ax2[2].plot([x[2] for x in stats], label='med')
+			# ax2[3].plot([x[3] for x in stats], label='25th perc')
+			# plt.legend()
+			# plt.grid()
 
 			# ordered_stats = sorted()
-		# plt.show()
+		# fig.grid()
+		plt.legend()
+		plt.grid()
+		plt.show()
 
 if __name__ == '__main__':
 
@@ -407,5 +424,5 @@ if __name__ == '__main__':
 	# DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 
 	DB.statistics(cities, start, end)
-	DB.statistics(cities, start, end, bk=False)
-	plt.show()
+	# DB.statistics(cities, start, end, bk=False)
+	# plt.show()
