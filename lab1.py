@@ -202,7 +202,6 @@ class MyMongoDB:
 						}
 					},
 				{
-
 					'$project':{
 						'duration':{
 							'$subtract':['$final_time','$init_time'],
@@ -234,29 +233,44 @@ class MyMongoDB:
 	def clean_dataset(self):
 		aggr_by_location = self.per_pk.aggregate([{
 				'$match':{'city':'Torino'}
-			},{
+			},
+			{
+				'$project':{
+					'loc.coordinates':1,
+					'plate':1,
+					# 'final_time':1,
+					# 'init_time':1,
+					'duration':{
+						'$subtract':['$final_time','$init_time']
+					}
+				}
+			},
+			{
 				'$group':{
 					'_id':'$loc.coordinates',
 					'plates':{
 						'$push':'$plate'
+						},
+					'durations':{
+						'$push':'$duration'
 						}
-				}
+					},
+				},
+			{
+				'$limit':200
 			},
 			# {
-			# 	'$limit':100
+			# 	'$addFields':{
+			# 	'tot':
+			# 		{
+			# 			'$size':'$plates'}
+			# 			}
 			# },
-			{
-				'$addFields':{
-				'tot':
-					{
-						'$size':'$plates'}
-						}
-			},
-			{
-				'$sort':
-					{
-						'tot':-1}
-			},
+			# {
+			# 	'$sort':
+			# 		{
+			# 			'tot':1}
+			# },
 			],allowDiskUse=True)
 
 		pprint(list(aggr_by_location))
