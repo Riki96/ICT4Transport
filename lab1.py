@@ -180,7 +180,8 @@ class MyMongoDB:
 			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
 			axs[1].plot(np.sort(lst_booking),p)
 			axs[1].grid()
-			axs[0].set_xscale('log')
+			axs[1].set_xscale('log')
+			plt.legend()
 		plt.show()
 
 	def CDF_weekly(self, start, end, cities):
@@ -202,6 +203,7 @@ class MyMongoDB:
 						}
 					},
 				{
+
 					'$project':{
 						'duration':{
 							'$subtract':['$final_time','$init_time'],
@@ -233,47 +235,83 @@ class MyMongoDB:
 	def clean_dataset(self):
 		aggr_by_location = self.per_pk.aggregate([{
 				'$match':{'city':'Torino'}
-			},
-			{
-				'$project':{
-					'loc.coordinates':1,
-					'plate':1,
-					# 'final_time':1,
-					# 'init_time':1,
-					'duration':{
-						'$subtract':['$final_time','$init_time']
-					}
-				}
-			},
-			{
+			},{
 				'$group':{
 					'_id':'$loc.coordinates',
 					'plates':{
 						'$push':'$plate'
-						},
-					'durations':{
-						'$push':'$duration'
 						}
-					},
-				},
-			{
-				'$limit':200
+				}
 			},
 			# {
-			# 	'$addFields':{
-			# 	'tot':
-			# 		{
-			# 			'$size':'$plates'}
-			# 			}
+			# 	'$limit':100
 			# },
-			# {
-			# 	'$sort':
-			# 		{
-			# 			'tot':1}
-			# },
+			{
+				'$addFields':{
+				'tot':
+					{
+						'$size':'$plates'}
+						}
+			},
+			{
+				'$sort':
+					{
+						'tot':-1}
+			},
 			],allowDiskUse=True)
-
 		pprint(list(aggr_by_location))
+	
+	def book2rent(self, start, end):
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())
+		data = self.per_bk.aggregate([
+			{'$match':{
+				'init_time':{'$gte':unix_start,'$lte':unix_end}}
+			},
+			{'$project': {
+				'_id':0,
+				'city':1,
+				'driving':1,
+				'moved': { '$ne': [
+					{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
+					{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]},
+				'rental' : { '$divide': ["$driving.duration", 60 ] },
+				'booking': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
+				}
+			},
+			{'$match':{
+				'moved':True,
+				'$or':[ #booking in between 2 min & 3 hours
+					{
+					'$and':[ 
+						{'booking':{ '$lte': 180}},
+						{'booking':{ '$gte': 2}}]
+					},
+					{'$and':[ 
+						{'rental':{ '$lte': 180}},
+						{'rental':{ '$gte': 2}}]
+					}
+					],
+				'rental':{'$gte':0} #only Torino and Milano pass this filter
+				}
+			},
+			{'$project': {
+				'city':1,
+				'rental':1,
+				'booking':1,
+				'eff_rental': {'$subtract': ['$booking', '$rental']}
+				}
+
+			},
+			{'$group':{
+				'_id':'$city',
+				'tot_rentals':{'$sum':1},
+				'avg_rent_time':{'$avg':'$rental'},
+				'avg_eff_time':{'$avg':'$eff_rental'},
+				'avg_book_time':{'$avg':'$booking'}}
+			}],allowDiskUse=True)
+		pprint(list(data))
+		
 if __name__ == '__main__':
 
 	cities = ['Torino','New York City','Amsterdam']
@@ -283,11 +321,10 @@ if __name__ == '__main__':
 	# DB.list_cities()
 	# DB.sort_collection()
 
-	start = datetime.date(2017,12,1)
-	end = datetime.date(2017,12,31)
-	DB.clean_dataset()
+	start = datetime.datetime(2016,10,1)
+	end = datetime.datetime(2017,10,31,23,59,59)
+	# DB.clean_dataset()
 	# DB.analyze_cities(cities, start, end)
-	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
+	# DB.CDF(start,end,cities)
 	# DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
-
-
+	DB.book2rent(start, end)
