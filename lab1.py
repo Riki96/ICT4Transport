@@ -397,6 +397,10 @@ class MyMongoDB:
 		return data
 
 	def density(self, start, end, city):
+		"""
+			TODO: 	Plot in minutes
+					Divide in grid
+		"""
 		# import csv
 		import pytz
 		import pandas
