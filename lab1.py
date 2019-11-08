@@ -230,60 +230,11 @@ class MyMongoDB:
 			plt.grid()
 			plt.legend()
 		plt.show()
-								
-	# def clean_dataset(self):
-	# 	aggr_by_location = self.per_pk.aggregate([{
-	# 			'$match':{'city':'Torino'},
-	# 			# '$init_time':
-	# 		},
-	# 		{
-	# 			'$project':{
-	# 				'_id':0,
-	# 				# 'plate':1,
-	# 				# 'final_time':1,
-	# 				# 'init_time':1,
-	# 				'moved':{
-	# 					'$ne':[
-	# 						{'$arrayElemAt':['loc.']}
-	# 					]
-	# 				}
-	# 			}
-	# 		},
-	# 		{
-	# 			'$group':{
-	# 				'_id':'$loc.coordinates',
-	# 				'plates':{
-	# 					'$push':'$plate'
-	# 					},
-	# 				'durations':{
-	# 					'$push':'$duration'
-	# 					}
-	# 				},
-	# 			},
-	# 		{
-	# 			'$limit':200
-	# 		},
-	# 		# {
-	# 		# 	'$addFields':{
-	# 		# 	'tot':
-	# 		# 		{
-	# 		# 			'$size':'$plates'}
-	# 		# 			}
-	# 		# },
-	# 		# {
-	# 		# 	'$sort':
-	# 		# 		{
-	# 		# 			'tot':1}
-	# 		# },
-	# 		],allowDiskUse=True)
-
-	# 	pprint(list(aggr_by_location))
-
 
 	def statistics(self, cities, start, end, bk=True):
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		fig, ax1 = plt.subplots(4, sharey=True)
+		fig, (ax1) = plt.subplots(4, sharey=True)
 		# print(len(ax1),len(ax2))
 		# exit()
 		for c in cities:
@@ -346,9 +297,6 @@ class MyMongoDB:
 			ax1[2].set_title('Median')
 			ax1[3].plot([x[3] for x in stats], label=c)
 			ax1[3].set_title('Percentile')
-			# plt.legend()
-			# plt.grid()
-
 		
 			# stats_parking = self.per_pk.aggregate([
 			# 	{
@@ -387,25 +335,110 @@ class MyMongoDB:
 			# ])
 			# # print(len(list(stats_parking)))
 			# stats = []
-			# plt.figure()
+			# # plt.figure()
 			# for i in stats_parking:
 			# 	# print(float(sum(i['arr']) / len(i['arr'])))
 			# 	med = statistics.median(i['arr'])
 			# 	perc_25 = np.percentile(np.array(i['arr']),25)
 			# 	stats.append((i['avg'],i['std'],med,perc_25))
 
-			# ax2[0].plot([x[0] for x in stats], label='avg')
-			# ax2[1].plot([x[1] for x in stats], label='std')
-			# ax2[2].plot([x[2] for x in stats], label='med')
-			# ax2[3].plot([x[3] for x in stats], label='25th perc')
-			# plt.legend()
-			# plt.grid()
+			# ax2[0].plot([x[0] for x in stats], label=c)
+			# ax2[1].plot([x[1] for x in stats], label=c)
+			# ax2[2].plot([x[2] for x in stats], label=c)
+			# ax2[3].plot([x[3] for x in stats], label=c)
 
-			# ordered_stats = sorted()
 		# fig.grid()
-		plt.legend()
-		plt.grid()
+		for i in range(4):
+			ax1[i].grid()
+			# ax2[i].grid()
+
+		# plt.legend()
+		# plt.grid()
 		plt.show()
+
+	def filtering(self, start, end):
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())
+		data = self.per_bk.aggregate([
+			{'$match':{
+				'init_time':{'$gte':unix_start,'$lte':unix_end}}
+			},
+			{'$project': {
+				'_id':0,
+				'city':1,
+				'moved': { '$ne': [ # moved => origin!=destination
+					{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
+					{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]},
+				'booking': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] }, #booking time 
+				}
+			},
+			{'$match':{
+				'moved':True,  		# ONLY CARS THAT HAVE BEEN MOVED
+				'$and':[ 			# ONLY BOOKINGS IN BETWEEN 2min and 3h
+					{'booking':{ '$lte': 180}},
+					{'booking':{ '$gte': 2}}]
+				}
+			},
+			# {'$group':{
+			# 	'_id':'$city',
+			# # 	'tot_rentals':{'$sum':1},
+			# 	# 'avg_book_time':{'$avg':'$booking'}
+			# 	}
+			# },
+			{'$project': {
+				'city':1,
+				'booking':1,
+				# 'eff_rental': {'$subtract': ['$booking', '$rental']}
+				}
+			}
+			],allowDiskUse=True)
+		
+		# pprint(list(data))
+		return data
+
+	def density(self, start, end, city):
+		# import csv
+		import pytz
+		import pandas
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())		
+		parked_cars = self.per_pk.aggregate([
+			{
+				'$match':{
+					'city': city,
+					'init_time':{
+							'$gte':unix_start,
+							'$lte':unix_end
+						}
+				}
+			},
+			# {
+			# 	'$limit':1000
+			# },
+			{
+				'$group':{
+					'_id':'$loc.coordinates',
+					'time':{'$push':'$init_date'}
+				}
+			},
+			])
+
+		table = []
+		# tz = pytz.timezone('Italy/Rome')
+		for i in parked_cars:
+			for j in i['time']:
+				dt = j + datetime.timedelta(hours=1)
+				table.append([i['_id'][1],i['_id'][0],j])
+		
+		table = pandas.DataFrame(table, columns=['Latitude','Longitude' ,'Time'])
+		table.to_csv('coordinates.csv')
+		# print(table)
+
+
+
+
+
+			
 
 if __name__ == '__main__':
 
@@ -423,6 +456,6 @@ if __name__ == '__main__':
 	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 	# DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 
-	DB.statistics(cities, start, end)
+	# DB.statistics(cities, start, end)
 	# DB.statistics(cities, start, end, bk=False)
-	# plt.show()
+	DB.density(start, end, 'Torino')
