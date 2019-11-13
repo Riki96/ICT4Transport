@@ -411,8 +411,6 @@ class MyMongoDB:
 					Divide in grid
 		"""
 		# import csv
-		
-		import descartes
 
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())		
@@ -479,20 +477,24 @@ class MyMongoDB:
 
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		z = np.linspace(0,0.1,5)
-		
+		z = np.linspace(0,0.05,5)
+		# print(z)
+		# exit()
 		# print(lat_min)
 		# exit()
-		table = np.zeros((5,5,2))
-		for i in range(len(z)):
+		table = {
+		}
+		# for i in range(len(z)):
+		for i in z:
 			# print(i)
-			for j in range(len(z)):
+			# for j in range(len(z)):
+			for j in z:
 				parked_at = self.per_pk.aggregate([
 					{
 						'$geoNear':{
 							'near':{
 								'type':'Point',
-								'coordinates':[long_min+z[i], lat_min+z[j]]
+								'coordinates':[(long_min+i), (lat_min+j)]
 							},
 							'spherical':True,
 							'key':'loc',
@@ -520,15 +522,21 @@ class MyMongoDB:
 				])
 				# print(list(parked_at))
 				# print('\n----\n')
-				# table = []
-				# tz = pytz.timezone('Italy/Rome')
-				for p in parked_at:
-					if len(p) > 0:
-						table[i,j,0] = p['_id'][1]
-						table[i,j,1] = p['_id'][0]
-				
-		table = pandas.DataFrame(table)
-		table.to_csv('near_at.csv')
+				key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
+				# print([*table])
+				# if key in [*table]:
+					
+				# else:
+					# table[key] = []
+				n = (len(list(parked_at)))
+				# print(n)
+				table[key] = n
+
+		# print(table)
+		# t = pandas.DataFrame(table)
+		# table.to_csv('near_at.csv')
+		# print(t)
+		pprint(table)
 
 if __name__ == '__main__':
 
