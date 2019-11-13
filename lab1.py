@@ -6,6 +6,7 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import statistics
+import pandas 
 
 class MyMongoDB:
 	def __init__(self):
@@ -191,14 +192,14 @@ class MyMongoDB:
 		"""
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		# fig, axs = plt.subplots(2)
-		plt.figure()
-		for d in range(7):
-			print(d)
+		fig, axs = plt.subplots(3)
+		# plt.figure()
+		cnt = 0
+		for c in cities:
 			duration_parking = (self.per_pk.aggregate([
 				{
 					'$match':{
-						'city':'Torino',
+						'city':c,
 						'init_time':{'$gte':unix_start,'$lte':unix_end}
 						}
 					},
@@ -207,28 +208,36 @@ class MyMongoDB:
 						'duration':{
 							'$subtract':['$final_time','$init_time'],
 						},
-						'dayOfWeek':{'$dayOfWeek':'$init_date'}
+						"weekOfMonth": {'$floor': 
+							{
+								'$divide': [{'$dayOfMonth': "$init_date"}, 7]}
+							}
 					},
 				},
 				{
-					'$match':{
-						'dayOfWeek':d
+					'$group':{	
+						'_id':'$weekOfMonth',
+						'd':{'$push':'$duration'}
 					}
+				},
+				{
+					'$limit':100
 				}
 				]))
 
-			lst_parking_d = []
+			# print(list(duration_parking))
+			# exit()
 			for i in duration_parking:
-				# print(i)
-				lst_parking_d.append(i['duration'])
+				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
+				axs[cnt].plot(np.sort(i['d']),p,label=i['_id'])
+			axs[cnt].grid()
+			axs[cnt].set_xscale('log')
 
-			lst_parking_d = np.array(lst_parking_d)/60
-			p = 1. * np.arange(len(lst_parking_d)) / (len(lst_parking_d)-1)
-			# axs[0].plot(np.sort(lst_parking_d),p)
-			# axs[0].grid()	
-			plt.plot(np.sort(lst_parking_d),p,label=d)
-			plt.grid()
-			plt.legend()
+			cnt += 1
+		# fig.grid()
+		# fig.legend()
+		# fig.xscale('log')
+		axs[2].legend()
 		plt.show()
 
 	def statistics(self, cities, start, end, bk=True):
@@ -402,8 +411,9 @@ class MyMongoDB:
 					Divide in grid
 		"""
 		# import csv
-		import pytz
-		import pandas
+		
+		import descartes
+
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())		
 		parked_cars = self.per_pk.aggregate([
@@ -417,32 +427,108 @@ class MyMongoDB:
 				}
 			},
 			# {
-			# 	'$limit':1000
+			# 	'$limit':10
 			# },
 			{
+				'$project':{
+					'init_date':1,
+					'loc.coordinates':1,
+					'duration':{
+						'$subtract':['$final_time','$init_time']
+					}
+				}
+			},
+			{
+				'$match':{
+					'duration':{
+						'$gte':3*60,
+						'$lte':180*60
+					}
+				}
+			},
+			{
 				'$group':{
-					'_id':'$loc.coordinates',
-					'time':{'$push':'$init_date'}
+					# '_id':{'c':'$loc.coordinates','h':{'$hour':'$init_date'}},
+					# 'time':{'$push':'$init_date'},
+					# 'timeDay':{'$hour':'$init_date'}
+					'_id':{'$hour':'$init_date'},
+					'coords':{'$push':'$loc.coordinates'},
+					# 'p':{'$push':'$plate'}
 				}
 			},
 			])
 
+		# print((list(parked_cars)))
+		# exit()
 		table = []
 		# tz = pytz.timezone('Italy/Rome')
 		for i in parked_cars:
-			for j in i['time']:
-				dt = j + datetime.timedelta(hours=1)
-				table.append([i['_id'][1],i['_id'][0],j])
+			for j in i['coords']:
+				# print(j)
+				# exit()
+				# dt = j + datetime.timedelta(hours=1)
+				# table.append([i['_id'][1],i['_id'][0],j])
+				table.append([str(i['_id'])+':00',j[1],j[0]])
 		
-		table = pandas.DataFrame(table, columns=['Latitude','Longitude' ,'Time'])
+		table = pandas.DataFrame(table, columns=['Hour','Latitude','Longitude'])
 		table.to_csv('coordinates.csv')
-		# print(table)
-
-
-
-
+		# print(len(table))
 
 			
+	def density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
+
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())
+		z = np.linspace(0,0.1,5)
+		
+		# print(lat_min)
+		# exit()
+		table = np.zeros((5,5,2))
+		for i in range(len(z)):
+			# print(i)
+			for j in range(len(z)):
+				parked_at = self.per_pk.aggregate([
+					{
+						'$geoNear':{
+							'near':{
+								'type':'Point',
+								'coordinates':[long_min+z[i], lat_min+z[j]]
+							},
+							'spherical':True,
+							'key':'loc',
+							'distanceField':'dist.calculated',
+							'maxDistance':500
+						}
+					},
+					{
+						'$match':
+						{
+							'city':'Torino',
+							'init_time':{
+								'$gte':unix_start,
+								'$lte':unix_end
+							}
+						}
+					},
+					{
+						'$group':{
+							# '_id':'$plate',
+							# 'coordinates':{'$push':'$loc.coordinates'}
+							'_id':'$loc.coordinates'
+						}
+					}
+				])
+				# print(list(parked_at))
+				# print('\n----\n')
+				# table = []
+				# tz = pytz.timezone('Italy/Rome')
+				for p in parked_at:
+					if len(p) > 0:
+						table[i,j,0] = p['_id'][1]
+						table[i,j,1] = p['_id'][0]
+				
+		table = pandas.DataFrame(table)
+		table.to_csv('near_at.csv')
 
 if __name__ == '__main__':
 
@@ -458,8 +544,6 @@ if __name__ == '__main__':
 	# DB.clean_dataset()
 	# DB.analyze_cities(cities, start, end)
 	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
-	# DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
+	# DB.CDF_weekly(start, end, cities)
+	DB.density_grid(start, end)
 
-	# DB.statistics(cities, start, end)
-	# DB.statistics(cities, start, end, bk=False)
-	DB.density(start, end, 'Torino')
