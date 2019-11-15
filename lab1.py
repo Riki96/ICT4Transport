@@ -163,13 +163,16 @@ class MyMongoDB:
 				])
 			lst_parking = []
 			lst_booking = []
-
+			cnt = 0
 			for i in duration_parking:
-				lst_parking.append(i['duration'])
 				
+				lst_parking.append(i['duration'])
+			
 			for i in duration_booking:
+				# cnt += 1
 				lst_booking.append(i['duration'])
 
+			# print(cnt)
 			lst_parking = np.array(lst_parking)
 			lst_booking = np.array(lst_booking)
 
@@ -477,7 +480,7 @@ class MyMongoDB:
 
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		z = np.linspace(0,0.05,5)
+		z = np.linspace(0,0.1,15)
 		# print(z)
 		# exit()
 		# print(lat_min)
@@ -486,6 +489,7 @@ class MyMongoDB:
 		}
 		# for i in range(len(z)):
 		for i in z:
+			print(i)
 			# print(i)
 			# for j in range(len(z)):
 			for j in z:
@@ -532,11 +536,62 @@ class MyMongoDB:
 				# print(n)
 				table[key] = n
 
-		# print(table)
-		# t = pandas.DataFrame(table)
-		# table.to_csv('near_at.csv')
+		# print(table.items())
+		k = []
+		for x,y in table.items():
+			k.append((x.split(' - ')[0], x.split(' - ')[1], y))
+		# print(k)
+		t = pandas.DataFrame(k, columns=['Latitude', 'Longitude','Value'])
+		t.to_csv('near_at.csv')
 		# print(t)
-		pprint(table)
+		# pprint(table)
+
+	def OD_matrix(self, start, end, lat_min=45.01089, long_min=7.60679):
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())
+		z = np.linspace(0,0.1,3)
+		od = self.per_bk.aggregate([
+			{
+				'$match':
+				{
+					'city':'Torino',
+					'init_time':{
+						'$gte':unix_start,
+						'$lte':unix_end
+					}
+				}
+			},		
+			{
+				'$project':{
+					'_id':0,
+					'moved': { '$ne': [ # moved => origin!=destination
+						{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
+						{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]
+						},
+					'origin': {'$arrayElemAt': ['$origin_destination.coordinates', 0]},
+					'dest': {'$arrayElemAt': ['$origin_destination.coordinates', 1]}
+				}
+			},
+			{
+				'$match':{
+					'moved':True
+				}
+			},
+			# {
+			# 	'$limit':100
+			# }
+		])		
+
+		# print(pandas.DataFrame(od))
+		OD = pandas.DataFrame(od)
+		for i,j in OD.iterrows():
+			# print(i)
+			# print(j)
+			# exit()
+			O = j['origin']
+			D = j['dest']
+
+			
 
 if __name__ == '__main__':
 
@@ -551,7 +606,15 @@ if __name__ == '__main__':
 	end = datetime.datetime(2017,10,31,23,59,59)
 	# DB.clean_dataset()
 	# DB.analyze_cities(cities, start, end)
-	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
+	# DB.CDF(start,end,cities)
 	# DB.CDF_weekly(start, end, cities)
-	DB.density_grid(start, end)
+	# DB.density_grid(start, end)
+	# DB.OD_matrix(start, end)
+	lat_long = [7.67912, 45.06145]
+	z = np.linspace(0,0.1,5)
+	lo = [x + 7.60679 for x in z]
+	la = [x + 45.01089 for x in z]
+	print(z)
+	print(min(lo, key=lambda x: abs(x - lat_long[0])))
+	print(min(la, key=lambda x: abs(x - lat_long[1])))
 
