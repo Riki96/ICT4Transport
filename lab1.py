@@ -124,8 +124,11 @@ class MyMongoDB:
 
 	def CDF(self, start, end, cities):
 		"""
-			Calculate the CDF for the cities over the duration of parkings and bookings
+			Calculate the CDF for the cities over the duration of parkings and bookings.
 		"""
+
+		#TODO: Insert also enjoy_data
+
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
 		fig, axs = plt.subplots(2)
@@ -165,11 +168,9 @@ class MyMongoDB:
 			lst_booking = []
 			cnt = 0
 			for i in duration_parking:
-				
 				lst_parking.append(i['duration'])
 			
 			for i in duration_booking:
-				# cnt += 1
 				lst_booking.append(i['duration'])
 
 			# print(cnt)
@@ -193,6 +194,9 @@ class MyMongoDB:
 			Calculate the CDF over the duratio of parking and booking aggregating for
 			day of the week (or by week)
 		"""
+
+		#TODO: Create meaningful plots for booking and parking
+
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
 		fig, axs = plt.subplots(3)
@@ -228,22 +232,46 @@ class MyMongoDB:
 				}
 				]))
 
+				duration_booking = (self.per_bk.aggregate([
+				{
+					'$match':{
+						'city':c,
+						'init_time':{'$gte':unix_start,'$lte':unix_end}
+						}
+					},
+				{
+					'$project':{
+						'duration':{
+							'$subtract':['$final_time','$init_time'],
+						},
+						"weekOfMonth": {'$floor': 
+							{
+								'$divide': [{'$dayOfMonth': "$init_date"}, 7]}
+							}
+					},
+				},
+				{
+					'$group':{	
+						'_id':'$weekOfMonth',
+						'd':{'$push':'$duration'}
+					}
+				},
+				{
+					'$limit':100
+				}
+				]))
+
 			# print(list(duration_parking))
 			# exit()
-			for i in duration_parking:
-				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
-				axs[cnt].plot(np.sort(i['d']),p,label=i['_id'])
-			axs[cnt].grid()
-			axs[cnt].set_xscale('log')
-
-			cnt += 1
-		# fig.grid()
-		# fig.legend()
-		# fig.xscale('log')
-		axs[2].legend()
-		plt.show()
 
 	def statistics(self, cities, start, end, bk=True):
+		"""
+			Calculate meaningful statistics on the data. Statistics chosen are 
+			Average, Median, Standard Deviation and 75th Percentile
+		"""
+
+		#TODO: Insert right filtering and create meaningful plot.
+
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
 		fig, (ax1) = plt.subplots(4, sharey=True)
@@ -298,8 +326,8 @@ class MyMongoDB:
 			# plt.figure()
 			for i in stats_parking:
 				med = statistics.median(i['arr'])
-				perc_25 = np.percentile(np.array(i['arr']),25)
-				stats.append((i['avg'],i['std'],med,perc_25))
+				perc_75 = np.percentile(np.array(i['arr']),75)
+				stats.append((i['avg'],i['std'],med,perc_75))
 
 			ax1[0].plot([x[0] for x in stats], label=c)
 			ax1[0].set_title('Average')
@@ -310,54 +338,51 @@ class MyMongoDB:
 			ax1[3].plot([x[3] for x in stats], label=c)
 			ax1[3].set_title('Percentile')
 		
-			# stats_parking = self.per_pk.aggregate([
-			# 	{
-			# 		'$match':{
-			# 			'city':c,
-			# 			'init_time':{
-			# 				'$gte':unix_start,
-			# 				'$lte':unix_end
-			# 			}
-			# 		}
-			# 	},
-			# 	{
-			# 		'$project':{
-			# 			'init_date':1,
-			# 			'duration':{
-			# 				'$subtract':['$final_time','$init_time']
-			# 			},
-			# 			'day':{'$dayOfMonth':'$init_date'}
-			# 		}
-			# 	},
-			# 	{
-			# 		'$group':{
-			# 			'_id':'$day',
-			# 			'arr':{'$push':'$duration'},
-			# 			'avg':{'$avg':'$duration'},
-			# 			'std':{'$stdDevSamp':'$duration'},
-			# 			'total':{'$sum':1},
-			# 			# 'field':{'$sum':{'$cond':[{'$lt':['$field',5000]},1,0]}}
-			# 		}
-			# 	},
-			# 	{
-			# 		'$sort':{
-			# 			'_id':1
-			# 		}
-			# 	}
-			# ])
-			# # print(len(list(stats_parking)))
-			# stats = []
-			# # plt.figure()
-			# for i in stats_parking:
-			# 	# print(float(sum(i['arr']) / len(i['arr'])))
-			# 	med = statistics.median(i['arr'])
-			# 	perc_25 = np.percentile(np.array(i['arr']),25)
-			# 	stats.append((i['avg'],i['std'],med,perc_25))
+			stats_parking = self.per_pk.aggregate([
+				{
+					'$match':{
+						'city':c,
+						'init_time':{
+							'$gte':unix_start,
+							'$lte':unix_end
+						}
+					}
+				},
+				{
+					'$project':{
+						'init_date':1,
+						'duration':{
+							'$subtract':['$final_time','$init_time']
+						},
+						'day':{'$dayOfMonth':'$init_date'}
+					}
+				},
+				{
+					'$group':{
+						'_id':'$day',
+						'arr':{'$push':'$duration'},
+						'avg':{'$avg':'$duration'},
+						'std':{'$stdDevSamp':'$duration'},
+						'total':{'$sum':1},
+						# 'field':{'$sum':{'$cond':[{'$lt':['$field',5000]},1,0]}}
+					}
+				},
+				{
+					'$sort':{
+						'_id':1
+					}
+				}
+			])
+			stats = []
+			for i in stats_parking:
+				med = statistics.median(i['arr'])
+				perc_75 = np.percentile(np.array(i['arr']),75)
+				stats.append((i['avg'],i['std'],med,perc_75))
 
-			# ax2[0].plot([x[0] for x in stats], label=c)
-			# ax2[1].plot([x[1] for x in stats], label=c)
-			# ax2[2].plot([x[2] for x in stats], label=c)
-			# ax2[3].plot([x[3] for x in stats], label=c)
+			ax2[0].plot([x[0] for x in stats], label=c)
+			ax2[1].plot([x[1] for x in stats], label=c)
+			ax2[2].plot([x[2] for x in stats], label=c)
+			ax2[3].plot([x[3] for x in stats], label=c)
 
 		# fig.grid()
 		for i in range(4):
@@ -368,52 +393,13 @@ class MyMongoDB:
 		# plt.grid()
 		plt.show()
 
-	def filtering(self, start, end):
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
-		data = self.per_bk.aggregate([
-			{'$match':{
-				'init_time':{'$gte':unix_start,'$lte':unix_end}}
-			},
-			{'$project': {
-				'_id':0,
-				'city':1,
-				'moved': { '$ne': [ # moved => origin!=destination
-					{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
-					{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]},
-				'booking': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] }, #booking time 
-				}
-			},
-			{'$match':{
-				'moved':True,  		# ONLY CARS THAT HAVE BEEN MOVED
-				'$and':[ 			# ONLY BOOKINGS IN BETWEEN 2min and 3h
-					{'booking':{ '$lte': 180}},
-					{'booking':{ '$gte': 2}}]
-				}
-			},
-			# {'$group':{
-			# 	'_id':'$city',
-			# # 	'tot_rentals':{'$sum':1},
-			# 	# 'avg_book_time':{'$avg':'$booking'}
-			# 	}
-			# },
-			{'$project': {
-				'city':1,
-				'booking':1,
-				# 'eff_rental': {'$subtract': ['$booking', '$rental']}
-				}
-			}
-			],allowDiskUse=True)
-		
-		# pprint(list(data))
-		return data
-
 	def density(self, start, end, city):
 		"""
-			TODO: 	Plot in minutes
-					Divide in grid
+			Derive the density of parkings in the Torino area.
+					
 		"""
-		# import csv
+
+		#TODO: Insert right filtering.
 
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())		
@@ -458,40 +444,27 @@ class MyMongoDB:
 				}
 			},
 			])
-
-		# print((list(parked_cars)))
-		# exit()
 		table = []
-		# tz = pytz.timezone('Italy/Rome')
 		for i in parked_cars:
 			for j in i['coords']:
-				# print(j)
-				# exit()
-				# dt = j + datetime.timedelta(hours=1)
-				# table.append([i['_id'][1],i['_id'][0],j])
 				table.append([str(i['_id'])+':00',j[1],j[0]])
 		
 		table = pandas.DataFrame(table, columns=['Hour','Latitude','Longitude'])
 		table.to_csv('coordinates.csv')
-		# print(len(table))
-
 			
 	def density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
+		"""
+			Develop a new grid system for Torino with each area colored for how many parkings are present
+		"""
+
+		#TODO: Insert right filtering and find a system to color the grid area.
 
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
 		z = np.linspace(0,0.1,15)
-		# print(z)
-		# exit()
-		# print(lat_min)
-		# exit()
-		table = {
-		}
-		# for i in range(len(z)):
+		table = {}
+
 		for i in z:
-			print(i)
-			# print(i)
-			# for j in range(len(z)):
 			for j in z:
 				parked_at = self.per_pk.aggregate([
 					{
@@ -524,32 +497,26 @@ class MyMongoDB:
 						}
 					}
 				])
-				# print(list(parked_at))
-				# print('\n----\n')
 				key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
-				# print([*table])
-				# if key in [*table]:
-					
-				# else:
-					# table[key] = []
 				n = (len(list(parked_at)))
-				# print(n)
 				table[key] = n
-
-		# print(table.items())
 		k = []
 		for x,y in table.items():
 			k.append((x.split(' - ')[0], x.split(' - ')[1], y))
-		# print(k)
 		t = pandas.DataFrame(k, columns=['Latitude', 'Longitude','Value'])
 		t.to_csv('near_at.csv')
-		# print(t)
-		# pprint(table)
 
 	def OD_matrix(self, start, end, lat_min=45.01089, long_min=7.60679):
+		"""
+			Create an Origin-Destination matrix to visualize where rentals start and end 
+			per time.
+		"""
+
+		#TODO: Find a visualization method and find a way to use timestamp
+
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		z = np.linspace(0,0.1,3)
+		
 		od = self.per_bk.aggregate([
 			{
 				'$match':
@@ -564,6 +531,8 @@ class MyMongoDB:
 			{
 				'$project':{
 					'_id':0,
+					'init_time':1,
+					'final_time':1,
 					'moved': { '$ne': [ # moved => origin!=destination
 						{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
 						{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]
@@ -577,19 +546,46 @@ class MyMongoDB:
 					'moved':True
 				}
 			},
-			# {
-			# 	'$limit':100
-			# }
-		])		
+			{
+				'$project':{
+					'moved':0
+				}
+			},
+			{
+				'$limit':10
+			}
+		])
+		OD = np.zeros((15*15,15*15), dtype='int32')
+		for o in od:
+			O, D = closest_to(o['origin'], o['dest'])
+			OD[O, D] += 1
 
-		# print(pandas.DataFrame(od))
-		OD = pandas.DataFrame(od)
-		for i,j in OD.iterrows():
-			# print(i)
-			# print(j)
-			# exit()
-			O = j['origin']
-			D = j['dest']
+		OD = pandas.DataFrame(OD)
+		OD.to_csv('OriginDestination_Matrix.csv')
+		print(OD)
+
+	def visualize_OD(self, file='OriginDestination_Matrix.csv'):
+
+
+
+
+
+def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
+	z = np.linspace(0,0.1,15)
+	lo = np.array([x + long_min for x in z])
+	la = np.array([x + lat_min for x in z])
+	# print(lo)
+	# print(la)
+	O_Long = np.abs(lo - O[0]).argmin()
+	O_Lat = np.abs(la - O[1]).argmin()
+	Area_O = 15*O_Long + O_Lat
+
+	D_Long = np.abs(lo - D[0]).argmin()
+	D_Lat = np.abs(la - D[1]).argmin()
+	Area_D = 15*D_Long + D_Lat
+
+	return Area_O, Area_D
+
 
 			
 
@@ -609,12 +605,4 @@ if __name__ == '__main__':
 	# DB.CDF(start,end,cities)
 	# DB.CDF_weekly(start, end, cities)
 	# DB.density_grid(start, end)
-	# DB.OD_matrix(start, end)
-	lat_long = [7.67912, 45.06145]
-	z = np.linspace(0,0.1,5)
-	lo = [x + 7.60679 for x in z]
-	la = [x + 45.01089 for x in z]
-	print(z)
-	print(min(lo, key=lambda x: abs(x - lat_long[0])))
-	print(min(la, key=lambda x: abs(x - lat_long[1])))
-
+	DB.OD_matrix(start, end)
