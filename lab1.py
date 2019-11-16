@@ -6,10 +6,13 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import statistics
-import pandas 
+import pandas
+import seaborn as sns
 
 class MyMongoDB:
 	def __init__(self):
+		# sns.set()
+
 		client = pm.MongoClient('bigdatadb.polito.it',
 			ssl=True,
 			authSource = 'carsharing',
@@ -128,7 +131,7 @@ class MyMongoDB:
 		"""
 
 		#TODO: Insert also enjoy_data
-
+		# sns.set_style('darkgrid')
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
 		fig, axs = plt.subplots(2)
@@ -177,7 +180,11 @@ class MyMongoDB:
 			lst_parking = np.array(lst_parking)
 			lst_booking = np.array(lst_booking)
 
+			# np.save('cdf.npy', lst_parking)
+			# exit()
+
 			p = 1. * np.arange(len(lst_parking)) / (len(lst_parking)-1)
+			# sns.relplot(data=p)
 			
 			axs[0].plot(np.sort(lst_parking),p)
 			axs[0].grid()
@@ -232,7 +239,7 @@ class MyMongoDB:
 				}
 				]))
 
-				duration_booking = (self.per_bk.aggregate([
+			duration_booking = (self.per_bk.aggregate([
 				{
 					'$match':{
 						'city':c,
@@ -564,11 +571,6 @@ class MyMongoDB:
 		OD.to_csv('OriginDestination_Matrix.csv')
 		print(OD)
 
-	def visualize_OD(self, file='OriginDestination_Matrix.csv'):
-
-
-
-
 
 def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
 	z = np.linspace(0,0.1,15)
@@ -602,7 +604,11 @@ if __name__ == '__main__':
 	end = datetime.datetime(2017,10,31,23,59,59)
 	# DB.clean_dataset()
 	# DB.analyze_cities(cities, start, end)
-	# DB.CDF(start,end,cities)
+	DB.CDF(start,end,cities)
+	# a = np.load('cdf_parking_Torino.npy')
+	# plt.plot(a)
+	# plt.show()
+
 	# DB.CDF_weekly(start, end, cities)
 	# DB.density_grid(start, end)
-	DB.OD_matrix(start, end)
+	# DB.OD_matrix(start, end)
