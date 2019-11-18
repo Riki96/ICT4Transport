@@ -6,7 +6,8 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import statistics
-import pandas 
+import pandas
+import seaborn as sb
 
 class MyMongoDB:
 	def __init__(self):
@@ -15,6 +16,7 @@ class MyMongoDB:
 			authSource = 'carsharing',
 			tlsAllowInvalidCertificates=True
 			)
+		# sb.set()
 		self.db = client['carsharing']
 		self.db.authenticate('ictts', 'Ictts16!')
 
@@ -131,7 +133,11 @@ class MyMongoDB:
 
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
+
+		sb.set_style('darkgrid')
 		fig, axs = plt.subplots(2)
+		fig.set_figheight(6)
+		fig.set_figwidth(15)
 		start_time = time.time()
 		for c in cities:
 			print(c)
@@ -179,18 +185,24 @@ class MyMongoDB:
 
 			p = 1. * np.arange(len(lst_parking)) / (len(lst_parking)-1)
 			
-			axs[0].plot(np.sort(lst_parking),p)
-			axs[0].grid()
+			axs[0].plot(np.sort(lst_parking),p, label=c)
+			# axs[0].grid()
 			axs[0].set_xscale('log')
 			# axs[0].savefig('Plots/CDF of Parking Duration for {}'.format())
 			
 			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
-			axs[1].plot(np.sort(lst_booking),p)
-			axs[1].grid()
+			axs[1].plot(np.sort(lst_booking),p, label=c)
+			# axs[1].grid()
 			axs[1].set_xscale('log')
-		fig.savefig('Plots/CDF Parking')
+
+		axs[0].set_title('CDF Parking/Booking Duration')
+
+		# axs[0].set_title('CDF Booking Duration')
+		plt.legend()
+		plt.gcf().autofmt_xdate()
+		fig.savefig('Plots/CDF', dpi=600)
 		# axs[0].savefig('Plots/CDF Booking')
-		plt.show()
+		# plt.show()
 
 	def CDF_weekly(self, start, end, cities):
 		"""	
@@ -204,9 +216,10 @@ class MyMongoDB:
 		unix_end = time.mktime(end.timetuple())
 		# plt.figure()
 		cnt = 0
+		sb.set_style('darkgrid')
 		for c in cities:
 			print(c)
-			plt.figure()
+			
 			duration_parking = (self.per_pk.aggregate([
 				{
 					'$match':{
@@ -239,17 +252,20 @@ class MyMongoDB:
 				]))
 
 			# cdf_parking = []
-
+			plt.figure(figsize=(15,6))
 			for i in duration_parking:
 				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
 				week = int(i['_id']) + 1
 				plt.plot(np.sort(np.array(i['d'])),p, label='Week {}'.format(week))
 
+			
+			# plt.figsize()
 			plt.legend()
-			plt.grid()
+			plt.gcf().autofmt_xdate()
+			# plt.grid()
 			plt.xscale('log')
 			plt.title('CDF of Parking Duration for {}'.format(c))
-			plt.savefig('Plots/Weekly CDF of Parking Duration for {}'.format(c))
+			plt.savefig('Plots/Weekly CDF of Parking Duration for {}'.format(c), dpi=600)
 
 			duration_booking = (self.per_bk.aggregate([
 				{
@@ -279,17 +295,19 @@ class MyMongoDB:
 				# 	'$limit':100
 				# }
 				]))
-			plt.figure()
+
+			plt.figure(figsize=(15,6))
 			for i in duration_booking:
 				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
 				week = int(i['_id']) + 1
 				plt.plot(np.sort(np.array(i['d'])),p, label='Week {}'.format(week))
 
 			plt.legend()
-			plt.grid()
+			plt.gcf().autofmt_xdate()
+			# plt.grid()
 			plt.xscale('log')
 			plt.title('CDF of Booking Duration for {}'.format(c))
-			plt.savefig('Plots/Weekly CDF of Booking Duration for {}'.format(c))
+			plt.savefig('Plots/Weekly CDF of Booking Duration for {}'.format(c), dpi=600)
 
 			# print(list(duration_parking))
 			# exit()
@@ -308,6 +326,8 @@ class MyMongoDB:
 		# fig, (ax1) = plt.subplots(4, sharey=True)
 		# print(len(ax1),len(ax2))
 		# exit()
+		# sb.set()
+		sb.set_style('darkgrid')
 		for c in cities:
 			print(c)
 			stats_booking = self.per_bk.aggregate([
@@ -360,18 +380,19 @@ class MyMongoDB:
 				perc_75 = np.percentile(np.array(i['arr']),75)
 				stats.append((i['avg'],i['std'],med,perc_75))
 
-			plt.figure(figsize=(12,6))	
+			plt.figure(figsize=(15,6))	
 			plt.plot([x[0] for x in stats], label='Average')
 			# plt.set_title('Average')
 			plt.plot([x[1] for x in stats], label='Standard Deviation')
 			# plt.set_title('StandardDeviation')
-			plt.plot([x[2] for x in stats], label='Median')
+			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
 			# plt.set_title('Median')
-			plt.plot([x[3] for x in stats], label='75th Percentile')
+			plt.plot([x[3] for x in stats],'-.', label='75th Percentile')
 			plt.title('City of {}'.format(c))
 			
 			plt.legend()
-			plt.grid()
+			plt.gcf().autofmt_xdate()
+			# plt.grid()
 			plt.xticks(np.arange(31), days, rotation=30)
 			# plt.savefig('Plots/City of {} - Bookings Statistics.png'.format(c), dpi=300)
 			plt.savefig('Plots/City of {} - Bookings Statistics.png'.format(c), dpi=600)
@@ -393,6 +414,14 @@ class MyMongoDB:
 							'$subtract':['$final_time','$init_time']
 						},
 						'day':{'$dayOfMonth':'$init_date'}
+					}
+				},
+				{
+					'$match':{
+						'duration':{
+							'$lte':600*60,
+							'$gte':2*60
+						}
 					}
 				},
 				{
@@ -418,18 +447,19 @@ class MyMongoDB:
 				perc_75 = np.percentile(np.array(i['arr']),75)
 				stats.append((i['avg'],i['std'],med,perc_75))
 
-			plt.figure(figsize=(12,6))
+			plt.figure(figsize=(15,6))
 			plt.plot([x[0] for x in stats], label='Average')
 			# plt.set_title('Average')
 			plt.plot([x[1] for x in stats], label='Standard Deviation')
 			# plt.set_title('StandardDeviation')
-			plt.plot([x[2] for x in stats], label='Median')
+			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
 			# plt.set_title('Median')
-			plt.plot([x[3] for x in stats], label='75th Percentile')
+			plt.plot([x[3] for x in stats],'-.', label='75th Percentile')
 			plt.title('City of {}'.format(c))
 			
 			plt.legend()
-			plt.grid()
+			plt.gcf().autofmt_xdate()
+			# plt.grid()
 			plt.xticks(np.arange(31), days, rotation=30)
 			# plt.savefig('Plots/City of {} - Parkings Statistics.png'.format(c), dpi=300)
 			plt.savefig('Plots/City of {} - Parkings Statistics.png'.format(c), dpi=600)			
@@ -653,6 +683,7 @@ if __name__ == '__main__':
 	# DB.analyze_cities(cities, start, end)
 	# DB.statistics(cities, start, end)
 	DB.CDF(start,end,cities)
-	# DB.CDF_weekly(start, end, cities)
+	DB.CDF_weekly(start, end, cities)
 	# DB.density_grid(start, end)
 	# DB.OD_matrix(start, end)
+	# DB.filtering(start, end)
