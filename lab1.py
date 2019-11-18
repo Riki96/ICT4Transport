@@ -182,11 +182,14 @@ class MyMongoDB:
 			axs[0].plot(np.sort(lst_parking),p)
 			axs[0].grid()
 			axs[0].set_xscale('log')
+			# axs[0].savefig('Plots/CDF of Parking Duration for {}'.format())
 			
 			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
 			axs[1].plot(np.sort(lst_booking),p)
 			axs[1].grid()
 			axs[1].set_xscale('log')
+		fig.savefig('Plots/CDF Parking')
+		# axs[0].savefig('Plots/CDF Booking')
 		plt.show()
 
 	def CDF_weekly(self, start, end, cities):
@@ -199,10 +202,11 @@ class MyMongoDB:
 
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		fig, axs = plt.subplots(3)
 		# plt.figure()
 		cnt = 0
 		for c in cities:
+			print(c)
+			plt.figure()
 			duration_parking = (self.per_pk.aggregate([
 				{
 					'$match':{
@@ -228,11 +232,26 @@ class MyMongoDB:
 					}
 				},
 				{
-					'$limit':100
+					'$sort':{
+						'_id':1
+					}
 				}
 				]))
 
-				duration_booking = (self.per_bk.aggregate([
+			# cdf_parking = []
+
+			for i in duration_parking:
+				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
+				week = int(i['_id']) + 1
+				plt.plot(np.sort(np.array(i['d'])),p, label='Week {}'.format(week))
+
+			plt.legend()
+			plt.grid()
+			plt.xscale('log')
+			plt.title('CDF of Parking Duration for {}'.format(c))
+			plt.savefig('Plots/Weekly CDF of Parking Duration for {}'.format(c))
+
+			duration_booking = (self.per_bk.aggregate([
 				{
 					'$match':{
 						'city':c,
@@ -256,30 +275,42 @@ class MyMongoDB:
 						'd':{'$push':'$duration'}
 					}
 				},
-				{
-					'$limit':100
-				}
+				# {
+				# 	'$limit':100
+				# }
 				]))
+			plt.figure()
+			for i in duration_booking:
+				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
+				week = int(i['_id']) + 1
+				plt.plot(np.sort(np.array(i['d'])),p, label='Week {}'.format(week))
+
+			plt.legend()
+			plt.grid()
+			plt.xscale('log')
+			plt.title('CDF of Booking Duration for {}'.format(c))
+			plt.savefig('Plots/Weekly CDF of Booking Duration for {}'.format(c))
 
 			# print(list(duration_parking))
 			# exit()
 
-	def statistics(self, cities, start, end, bk=True):
+	def statistics(self, cities, start, end, bk=True, days=[d for d in range(1,31+1)]):
 		"""
 			Calculate meaningful statistics on the data. Statistics chosen are 
 			Average, Median, Standard Deviation and 75th Percentile
 		"""
 
 		#TODO: Insert right filtering and create meaningful plot.
-
+		from matplotlib import dates
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		fig, (ax1) = plt.subplots(4, sharey=True)
+		# xtick = np.arange(31, [datetime.datetime(2017,10,day).date() for day in range(1, 31+1)])
+		# fig, (ax1) = plt.subplots(4, sharey=True)
 		# print(len(ax1),len(ax2))
 		# exit()
 		for c in cities:
 			print(c)
-			stats_parking = self.per_bk.aggregate([
+			stats_booking = self.per_bk.aggregate([
 				{
 					'$match':{
 						'city':c,
@@ -324,19 +355,26 @@ class MyMongoDB:
 			# print(len(list(stats_parking)))
 			stats = []
 			# plt.figure()
-			for i in stats_parking:
+			for i in stats_booking:
 				med = statistics.median(i['arr'])
 				perc_75 = np.percentile(np.array(i['arr']),75)
 				stats.append((i['avg'],i['std'],med,perc_75))
 
-			ax1[0].plot([x[0] for x in stats], label=c)
-			ax1[0].set_title('Average')
-			ax1[1].plot([x[1] for x in stats], label=c)
-			ax1[1].set_title('StandardDeviation')
-			ax1[2].plot([x[2] for x in stats], label=c)
-			ax1[2].set_title('Median')
-			ax1[3].plot([x[3] for x in stats], label=c)
-			ax1[3].set_title('Percentile')
+			plt.figure(figsize=(12,6))	
+			plt.plot([x[0] for x in stats], label='Average')
+			# plt.set_title('Average')
+			plt.plot([x[1] for x in stats], label='Standard Deviation')
+			# plt.set_title('StandardDeviation')
+			plt.plot([x[2] for x in stats], label='Median')
+			# plt.set_title('Median')
+			plt.plot([x[3] for x in stats], label='75th Percentile')
+			plt.title('City of {}'.format(c))
+			
+			plt.legend()
+			plt.grid()
+			plt.xticks(np.arange(31), days, rotation=30)
+			# plt.savefig('Plots/City of {} - Bookings Statistics.png'.format(c), dpi=300)
+			plt.savefig('Plots/City of {} - Bookings Statistics.png'.format(c), dpi=600)
 		
 			stats_parking = self.per_pk.aggregate([
 				{
@@ -374,24 +412,27 @@ class MyMongoDB:
 				}
 			])
 			stats = []
+			# plt.figure()
 			for i in stats_parking:
 				med = statistics.median(i['arr'])
 				perc_75 = np.percentile(np.array(i['arr']),75)
 				stats.append((i['avg'],i['std'],med,perc_75))
 
-			ax2[0].plot([x[0] for x in stats], label=c)
-			ax2[1].plot([x[1] for x in stats], label=c)
-			ax2[2].plot([x[2] for x in stats], label=c)
-			ax2[3].plot([x[3] for x in stats], label=c)
-
-		# fig.grid()
-		for i in range(4):
-			ax1[i].grid()
-			# ax2[i].grid()
-
-		# plt.legend()
-		# plt.grid()
-		plt.show()
+			plt.figure(figsize=(12,6))
+			plt.plot([x[0] for x in stats], label='Average')
+			# plt.set_title('Average')
+			plt.plot([x[1] for x in stats], label='Standard Deviation')
+			# plt.set_title('StandardDeviation')
+			plt.plot([x[2] for x in stats], label='Median')
+			# plt.set_title('Median')
+			plt.plot([x[3] for x in stats], label='75th Percentile')
+			plt.title('City of {}'.format(c))
+			
+			plt.legend()
+			plt.grid()
+			plt.xticks(np.arange(31), days, rotation=30)
+			# plt.savefig('Plots/City of {} - Parkings Statistics.png'.format(c), dpi=300)
+			plt.savefig('Plots/City of {} - Parkings Statistics.png'.format(c), dpi=600)			
 
 	def density(self, start, end, city):
 		"""
@@ -465,6 +506,7 @@ class MyMongoDB:
 		table = {}
 
 		for i in z:
+			print(i)
 			for j in z:
 				parked_at = self.per_pk.aggregate([
 					{
@@ -476,7 +518,7 @@ class MyMongoDB:
 							'spherical':True,
 							'key':'loc',
 							'distanceField':'dist.calculated',
-							'maxDistance':500
+							'maxDistance':550
 						}
 					},
 					{
@@ -493,18 +535,30 @@ class MyMongoDB:
 						'$group':{
 							# '_id':'$plate',
 							# 'coordinates':{'$push':'$loc.coordinates'}
-							'_id':'$loc.coordinates'
+							'_id':{'loc':'$loc.coordinates', 'h':{'$hour':'$init_date'}}
 						}
 					}
 				])
 				key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
-				n = (len(list(parked_at)))
-				table[key] = n
+				# n = (len(list(parked_at)))
+				# table[key] = n
+				for p in parked_at:
+					# print(p)
+					h = p['_id']['h']
+					k = key + ' - ' + str(h)
+					if k in list(table.keys()):
+						# print(table[k])
+						table[k] = table[k] + len(p)
+					else:
+						table[k] = len(p)
+					# print(table)
+					# exit()
 		k = []
+		pprint(table)
 		for x,y in table.items():
-			k.append((x.split(' - ')[0], x.split(' - ')[1], y))
-		t = pandas.DataFrame(k, columns=['Latitude', 'Longitude','Value'])
-		t.to_csv('near_at.csv')
+			k.append((x.split(' - ')[0], x.split(' - ')[1], x.split(' - ')[2], y))
+		t = pandas.DataFrame(k, columns=['Latitude', 'Longitude','Hour', 'Value'])
+		t.to_excel('near_at.xlsx')
 
 	def OD_matrix(self, start, end, lat_min=45.01089, long_min=7.60679):
 		"""
@@ -551,23 +605,19 @@ class MyMongoDB:
 					'moved':0
 				}
 			},
-			{
-				'$limit':10
-			}
+			# {
+			# 	'$limit':10
+			# }
 		])
 		OD = np.zeros((15*15,15*15), dtype='int32')
 		for o in od:
 			O, D = closest_to(o['origin'], o['dest'])
+			# print(O,D)
 			OD[O, D] += 1
 
-		OD = pandas.DataFrame(OD)
-		OD.to_csv('OriginDestination_Matrix.csv')
-		print(OD)
-
-	def visualize_OD(self, file='OriginDestination_Matrix.csv'):
-
-
-
+		# exit()
+		OriginDestination = pandas.DataFrame(OD)
+		OriginDestination.to_excel('OriginDestination_Matrix.xlsx')
 
 
 def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
@@ -600,9 +650,9 @@ if __name__ == '__main__':
 
 	start = datetime.datetime(2017,10,1)
 	end = datetime.datetime(2017,10,31,23,59,59)
-	# DB.clean_dataset()
 	# DB.analyze_cities(cities, start, end)
-	# DB.CDF(start,end,cities)
+	# DB.statistics(cities, start, end)
+	DB.CDF(start,end,cities)
 	# DB.CDF_weekly(start, end, cities)
 	# DB.density_grid(start, end)
-	DB.OD_matrix(start, end)
+	# DB.OD_matrix(start, end)
