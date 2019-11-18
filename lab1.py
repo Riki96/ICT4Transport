@@ -5,6 +5,9 @@ from scipy import stats
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import pandas as pd
+import json
+import copy
 
 class MyMongoDB:
 	def __init__(self):
@@ -21,12 +24,7 @@ class MyMongoDB:
 		self.act_bk = self.db['ActiveBookings']
 		self.act_pk = self.db['ActiveParkings']
 
-		self.per_bk_enj = self.db['enjoy_PermanentBookings']
-		self.per_pk_enj = self.db['enjoy_PermanentParkings']
-		self.act_bk_enj = self.db['enjoy_ActiveBookings']
-		self.act_pk_enj = self.db['enjoy_ActiveParkings']
-
-		self.container = {}
+		self.obj = {}
 
 	def list_documents(self):
 		"""
@@ -36,282 +34,298 @@ class MyMongoDB:
 		self.n_per_pk = self.per_pk.find({}).count()
 		self.n_act_bk = self.act_bk.find({}).count()
 		self.n_act_pk = self.act_pk.find({}).count()
-
-		self.n_per_bk_enj = self.per_bk_enj.find({}).count()
-		self.n_per_pk_enj = self.per_pk_enj.find({}).count()
-		self.n_act_bk_enj = self.act_bk_enj.find({}).count()
-		self.n_act_pk_enj = self.act_pk_enj.find({}).count()
-
-		print(self.n_per_bk, self.n_per_pk, self.n_act_bk, self.n_act_pk)
-		print(self.n_per_bk_enj, self.n_per_pk_enj, self.n_act_bk_enj, self.n_act_pk_enj)
+		print(n_per_bk, n_per_pk, n_act_bk, n_act_pk)
 
 	def list_cities(self):
 		"""
 			List all cities of the Database
 		"""
 		self.list_cities = self.per_bk.distinct('city')
-		self.list_cities_enj = self.per_pk_enj.distinct('city')
-		pprint(sorted(self.list_cities))
-		pprint(sorted(self.list_cities_enj))
+		print(sorted(self.list_cities))
 
-		for l in self.list_cities:
-			print('City:{} - Number:{}'.format(l,self.per_bk.count({'city':l})))
-
-		for l in self.list_cities_enj:
-			print('City:{} \t Number:{}'.format(l,self.per_bk_enj.count({'city':l})))
-
-	def sort_collection(self):
-		"""
-			Sort the collection to see when it started/ended
-			//TODO//
-				ASK PROFESSOR
-			//TODO//
-		"""
-		# pprint(self.per_bk.index_information())
-		init_sort = self.per_pk.find({'init_time':{'$lt':1481650748}}).sort(
-			'init_time',1)
-		
-		print(list(init_sort)[0]['init_date'])
-
-		sort_init = self.per_pk.find({'init_time':{'$gt':1500000000}}).sort(
-			'init_time',-1)
-		print(list(sort_init)[0]['final_date'])
-
-
-	def analyze_cities(self, cities, start_date, end_date):
-		"""
-			For OUR cities, check how many cars are available, how many bookings
-			have been recorded during a period and if there is an alterate transport method
-		"""
-		unix_start = time.mktime(start_date.timetuple())
-		unix_end = time.mktime(end_date.timetuple())
-
-		for c in cities:
-			print(c)
-			avb_cars = self.act_pk.count({'city':c})
-			if c == 'Torino':
-				avb_cars_enj = self.act_pk_enj.count({'city':c})
-			else:
-				avb_cars_enj = ''
-			print('%d cars in %s'%(avb_cars, c))
-			bk_in_date = self.per_bk.count({
-				'city':c,
-				'init_time':{'$gte':unix_start,'$lte':unix_end}})
-			# print('%f cars from %s to %s in %s'%(bk_in_date, start_date, end_date, c))
-			pub_trans = self.per_bk.count({
-				'city':c,
-				'public_transport.duration':{'$ne':-1}})
-			drv_trans = self.per_bk.count({
-				'city':c,
-				'driving.duration':{'$ne':-1}})
-			walk_trans = self.per_bk.count({
-				'city':c,
-				'walking.duration':{'$ne':-1}})
-			# print('%f bookings with alternative mode transportation in %s'%(alt_trans,c))
-			tmp_obj = {
-				'AvailableCars':avb_cars,
-				'AvailableCars_enj':avb_cars_enj,
-				'BookingsDate':bk_in_date,
-				'PublicTransport':pub_trans,
-				'Walking':walk_trans,
-				'Driving':drv_trans
-			}
-			self.container[c] = tmp_obj
-
-		pprint(self.container)
-
-	def CDF(self, start, end, cities):
-		"""
-			Calculate the CDF for the cities over the duration of parkings and bookings
-		"""
+	def visualization(self,start,end,cities):
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		fig, axs = plt.subplots(2)
-		start_time = time.time()
-		for c in cities:
-			print(c)
-			duration_parking = (self.per_pk.aggregate([
-				{
-					'$match':{
-						'city':c,
-						'init_time':{'$gte':unix_start,'$lte':unix_end}}
-					},
-				{
-					'$project':{
-						'duration':{
-							'$subtract':['$final_time','$init_time']
-						}
-					},
-				}
-				]))
+		# x_vect=[]
+		# cnt=0
+		# for a in range(1440):
+		# 	x_vect.append(cnt//60)
+		# 	cnt+=1
 
-			duration_booking = self.per_bk.aggregate([
-				{
-					'$match':{
-						'city':c,
-						'init_time':{'$gte':unix_start,'$lte':unix_end}}
-					},
-				{
-					'$project':{
-						'duration':{
-							'$subtract':['$final_time','$init_time']
-						}
-					},
-				}
-				])
-			lst_parking = []
-			lst_booking = []
+		# 0->Turin
+		# 1->NYC
+		# 2->Amsterdam
+		bk_collector = {'Torino':[],'New York City':[],'Amsterdam':[]}
 
-			for i in duration_parking:
-				lst_parking.append(i['duration'])
-				
-			for i in duration_booking:
-				lst_booking.append(i['duration'])
+		for city in cities:		
+			for day in range(31):
+				tmp = {day:[]}
+				bk_collector[city].append(tmp)
+				for hour in range(24):
+					for minute in range(60):
+						tmp = {'%02d:%02d'%(hour,minute):0}
+						bk_collector[city][day].update(tmp)
+				bk_collector[city][day].pop(day)
+			bk_filtered = copy.deepcopy(bk_collector)
+			pk_collector = copy.deepcopy(bk_collector)
+			pk_filtered = copy.deepcopy(bk_collector)
 
-			lst_parking = np.array(lst_parking)
-			lst_booking = np.array(lst_booking)
-
-			p = 1. * np.arange(len(lst_parking)) / (len(lst_parking)-1)
-			
-			axs[0].plot(np.sort(lst_parking),p)
-			axs[0].grid()
-			axs[0].set_xscale('log')
-			
-			p = 1. * np.arange(len(lst_booking)) / (len(lst_booking)-1)
-			axs[1].plot(np.sort(lst_booking),p)
-			axs[1].grid()
-			axs[1].set_xscale('log')
-			plt.legend()
-		plt.show()
-
-	def CDF_weekly(self, start, end, cities):
-		"""	
-			Calculate the CDF over the duratio of parking and booking aggregating for
-			day of the week (or by week)
-		"""
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
-		# fig, axs = plt.subplots(2)
-		plt.figure()
-		for d in range(7):
-			print(d)
-			duration_parking = (self.per_pk.aggregate([
-				{
-					'$match':{
-						'city':'Torino',
-						'init_time':{'$gte':unix_start,'$lte':unix_end}
-						}
-					},
-				{
-
-					'$project':{
-						'duration':{
-							'$subtract':['$final_time','$init_time'],
-						},
-						'dayOfWeek':{'$dayOfWeek':'$init_date'}
-					},
+		st_time = time.strftime("%H:%M:%S", time.gmtime())
+		print('----------------------------------')
+		print('Started analyzing Database at', st_time)
+		for city in cities: 
+			#---------------------------------------------------------------------------------------
+			# BOOKINGS
+			#---------------------------------------------------------------------------------------
+			print(' ---> Analyzing bookings of',city,'at:',time.strftime("%H:%M:%S", time.gmtime()))
+			temp_bk = self.per_bk.aggregate([{
+				'$match':
+					{
+					'city':city,
+					'init_time':{'$gte':unix_start,'$lte':unix_end}
+					}
 				},
 				{
-					'$match':{
-						'dayOfWeek':d
+				'$project':{
+					'init_date':1,
+					'init_time':1,
+					'city':1,
+					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
+					'minute':{'$minute':'$init_date'},
+					'hour':{'$hour':'$init_date'},
+					'day':{'$dayOfMonth':'$init_date'},
 					}
-				}
-				]))
-
-			lst_parking_d = []
-			for i in duration_parking:
-				# print(i)
-				lst_parking_d.append(i['duration'])
-
-			lst_parking_d = np.array(lst_parking_d)/60
-			p = 1. * np.arange(len(lst_parking_d)) / (len(lst_parking_d)-1)
-			# axs[0].plot(np.sort(lst_parking_d),p)
-			# axs[0].grid()	
-			plt.plot(np.sort(lst_parking_d),p,label=d)
-			plt.grid()
-			plt.legend()
-		plt.show()
-								
-	def clean_dataset(self):
-		aggr_by_location = self.per_pk.aggregate([{
-				'$match':{'city':'Torino'}
-			},{
+				},
+				{
 				'$group':{
-					'_id':'$loc.coordinates',
-					'plates':{
-						'$push':'$plate'
-						}
-				}
-			},
-			# {
-			# 	'$limit':100
-			# },
-			{
-				'$addFields':{
-				'tot':
-					{
-						'$size':'$plates'}
-						}
-			},
-			{
-				'$sort':
-					{
-						'tot':-1}
-			},
-			],allowDiskUse=True)
-		pprint(list(aggr_by_location))
-	
-	def book2rent(self, start, end):
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
-		data = self.per_bk.aggregate([
-			{'$match':{
-				'init_time':{'$gte':unix_start,'$lte':unix_end}}
-			},
-			{'$project': {
-				'_id':0,
-				'city':1,
-				'driving':1,
-				'moved': { '$ne': [
-					{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
-					{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]},
-				'rental' : { '$divide': ["$driving.duration", 60 ] },
-				'booking': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
-				}
-			},
-			{'$match':{
-				'moved':True,
-				'$or':[ #booking in between 2 min & 3 hours
-					{
-					'$and':[ 
-						{'booking':{ '$lte': 180}},
-						{'booking':{ '$gte': 2}}]
+					'_id':{
+					'M':'$minute',
+					'H':'$hour',
+					'D':'$day'
 					},
-					{'$and':[ 
-						{'rental':{ '$lte': 180}},
-						{'rental':{ '$gte': 2}}]
+					'count':{'$sum':1}
 					}
-					],
-				'rental':{'$gte':0} #only Torino and Milano pass this filter
 				}
-			},
-			{'$project': {
-				'city':1,
-				'rental':1,
-				'booking':1,
-				'eff_rental': {'$subtract': ['$booking', '$rental']}
-				}
+				])
+			temp_bk = list(temp_bk)
 
-			},
-			{'$group':{
-				'_id':'$city',
-				'tot_rentals':{'$sum':1},
-				'avg_rent_time':{'$avg':'$rental'},
-				'avg_eff_time':{'$avg':'$eff_rental'},
-				'avg_book_time':{'$avg':'$booking'}}
-			}],allowDiskUse=True)
-		pprint(list(data))
-		
+			temp_filtered_bk = self.per_bk.aggregate([{
+				'$match':
+					{
+					'city':city,
+					'init_time':{'$gte':unix_start,'$lte':unix_end}
+					}
+				},
+				{
+				'$project':{
+					'init_date':1,
+					'init_time':1,
+					'city':1,
+					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
+					'minute':{'$minute':'$init_date'},
+					'hour':{'$hour':'$init_date'},
+					'day':{'$dayOfMonth':'$init_date'},
+					'moved': { '$ne': [
+						{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
+						{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]
+						},
+					'dist_lat':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 0]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 0]}]}},
+					'dist_long':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 1]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 1]}]}},
+					
+					}
+				},
+				{'$match':{
+					'$or':[
+						{'dist_long':{'$gte':0.0003}},
+						{'dist_lat':{'$gte':0.0003}},
+						],
+					'duration':{'$lte':180,'$gte':2},
+					# 'moved':True,
+					}},
+				{
+				'$group':{
+					'_id':{
+					'M':'$minute',
+					'H':'$hour',
+					'D':'$day'
+					},
+					'count':{'$sum':1},
+					}
+				}
+				])
+			temp_filtered_bk = list(temp_filtered_bk)
+
+			for c in temp_filtered_bk:
+				bk_filtered[city][c['_id']['D']]['%02d:%02d'%(c['_id']['H'],c['_id']['M'])] += c['count']
+			for d in temp_bk:
+				bk_collector[city][d['_id']['D']]['%02d:%02d'%(d['_id']['H'],d['_id']['M'])] += d['count']
+				
+			#---------------------------------------------------------------------------------------
+			# PARKINGS
+			#---------------------------------------------------------------------------------------
+			print(' ---> Analyzing parkings of',city,'at:',time.strftime("%H:%M:%S", time.gmtime()))
+			print()
+			temp_pk = self.per_pk.aggregate([{
+				'$match':
+					{
+					'city':city,
+					'init_time':{'$gte':unix_start,'$lte':unix_end}
+					}
+				},
+				{
+				'$project':{
+					'init_date':1,
+					'init_time':1,
+					'city':1,
+					# 'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
+					'minute':{'$minute':'$init_date'},
+					'hour':{'$hour':'$init_date'},
+					'day':{'$dayOfMonth':'$init_date'},
+					}
+				},
+				{
+				'$group':{
+					'_id':{
+					'M':'$minute',
+					'H':'$hour',
+					'D':'$day'
+					},
+					'count':{'$sum':1}
+					}
+				}
+				])
+			temp_pk = list(temp_pk)
+
+			temp_filt_pk = self.per_pk.aggregate([{
+				'$match':
+					{
+					'city':city,
+					'init_time':{'$gte':unix_start,'$lte':unix_end}
+					}
+				},
+				{
+				'$project':{
+					'init_date':1,
+					'init_time':1,
+					'final_time':1,
+					'city':1,
+					'plate':1,
+					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
+					}
+				},
+				{
+				'$match':{
+					'duration':{'$gte':1}
+					}
+				},
+				{
+				'$group':{
+					'_id':{'plate':'$plate'},
+					'count':{'$sum':1},
+					'initials':{'$push':'$init_time'},
+					'finals':{'$push':'$final_time'},
+					}
+				},
+				])
+			temp_filt_pk = list(temp_filt_pk)
+			# pprint(temp_filt_pk)
+
+
+			for e in temp_pk:
+				pk_collector[city][e['_id']['D']]['%02d:%02d'%(e['_id']['H'],e['_id']['M'])] += e['count']
+
+			for f in temp_filt_pk:
+				plate = f['_id']['plate']
+				start_time, final_time = np.sort(f['initials']), np.sort(f['finals'])
+				 
+				#FILTERING
+				for i in range(1,len(start_time)):
+				
+					try:
+						day = int(datetime.datetime.utcfromtimestamp(start_time[i]).strftime('%d'))
+						hour = int(datetime.datetime.utcfromtimestamp(start_time[i]).strftime('%H'))
+						minute = int(datetime.datetime.utcfromtimestamp(start_time[i]).strftime('%M'))
+						pk_duration = start_time[i+1] - final_time[i]
+						if pk_duration <= 180:
+							print('pippo:',pk_duration,day,hour,minute)
+							start_time[i+1] = start_time[i-1]
+							start_time = np.delete(start_time, i)
+							start_time = np.delete(start_time, i-1)
+							final_time = np.delete(final_time, i)
+							final_time = np.delete(final_time, i-1)
+							i=1
+					except IndexError:
+						pass
+
+				for index in range(len(start_time)):
+					day = int(datetime.datetime.utcfromtimestamp(start_time[index]).strftime('%d'))
+					hour = int(datetime.datetime.utcfromtimestamp(start_time[index]).strftime('%H'))
+					minute = int(datetime.datetime.utcfromtimestamp(start_time[index]).strftime('%M'))
+					try:
+						pk_duration = start_time[index+1] - final_time[index]
+						if pk_duration<180:
+							print('gianni:',pk_duration,day,hour,minute)
+					except IndexError:
+						pass
+					pk_filtered[city][day]['%02d:%02d'%(hour,minute)] += 1
+					# print(pk_filtered[city][day]['%02d:%02d'%(hour,minute)])
+
+
+		fs_time = time.strftime("%H:%M:%S", time.gmtime()) 
+		print('Finished analyzing Database at', fs_time)
+		print('----------------------------------')
+		n_bk = {'Torino':[],'New York City':[],'Amsterdam':[]}
+		n_pk = copy.deepcopy(n_bk)
+		n_filt_bk = copy.deepcopy(n_bk)
+		n_filt_pk = copy.deepcopy(n_bk)
+
+		for city in cities:
+			plt.figure()
+
+			for x in range(1,31):
+				plot_bk = list(bk_collector[city][x].values())
+				plot_pk = list(pk_collector[city][x].values())
+				n_bk[city].append(sum(plot_bk))
+				n_pk[city].append(sum(plot_pk))
+				if x==1:
+					# plt.plot(plot_bk,'r', label='Not filtered data')
+					plt.plot(plot_pk,'r', label='Not filtered data')
+				else:
+					# plt.plot(plot_bk,'r')
+					plt.plot(plot_pk,'r')
+
+				plot_filt_bk = list(bk_filtered[city][x].values())
+				plot_filt_pk = list(pk_filtered[city][x].values())
+				n_filt_bk[city].append(sum(plot_filt_bk))
+				n_filt_pk[city].append(sum(plot_filt_pk))
+				if x==1:
+				# 	plt.plot(plot_filt_bk,'b', label='Filtered data')
+					plt.plot(plot_filt_pk,'b', label='Filtered data')
+				else:
+				# 	plt.plot(plot_filt_bk,'b')
+					plt.plot(plot_filt_pk,'b')
+
+			plt.legend()
+			plt.show()
+
+			# plt.figure()
+			# plt.plot(n_bk[city])
+			# plt.plot(n_filt_bk[city])
+			# plt.show()
+
+			plt.figure()
+			plt.plot(n_pk[city])
+			plt.plot(n_filt_pk[city])
+			plt.show()
+
+		for city in cities:
+			tot_bk, tot_filt_bk = sum(n_bk[city]), sum(n_filt_bk[city])
+			tot_pk, tot_filt_pk = sum(n_pk[city]), sum(n_filt_pk[city])
+
+			print('♣ BOOKINGS: Percentage of filtered data for',city,'is',round(100*(tot_bk - tot_filt_bk)/tot_bk,2),'%')
+			print('♠ PARKINGS: Percentage of filtered data for',city,'is',round(100*(tot_pk - tot_filt_pk)/tot_pk,2),'%')
+			print('+++++++++++++++++++++++++++++++++++++++++')
+
 if __name__ == '__main__':
 
 	cities = ['Torino','New York City','Amsterdam']
@@ -319,12 +333,13 @@ if __name__ == '__main__':
 	DB = MyMongoDB()
 	# DB.list_documents()
 	# DB.list_cities()
-	# DB.sort_collection()
 
-	start = datetime.datetime(2016,10,1)
-	end = datetime.datetime(2017,10,31,23,59,59)
-	# DB.clean_dataset()
+	start = datetime.date(2017,10,1)
+	end = datetime.date(2017,10,31)
+
 	# DB.analyze_cities(cities, start, end)
-	# DB.CDF(start,end,cities)
+	# DB.CDF(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
 	# DB.CDF_weekly(datetime.date(2017,10,1),datetime.date(2017,10,31),cities)
-	DB.book2rent(start, end)
+	# DB.optional(start, end)
+	DB.visualization(start, end, cities)
+	# DB.filtering(start, end)
