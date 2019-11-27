@@ -1,7 +1,6 @@
 import pymongo as pm
 from pprint import pprint
 import datetime
-from pytz import timezone
 from scipy import stats
 import numpy as np
 import time
@@ -9,6 +8,7 @@ import matplotlib.pyplot as plt
 import statistics
 import pandas
 import seaborn as sb
+from matplotlib import dates
 
 class MyMongoDB:
 	def __init__(self):
@@ -78,7 +78,7 @@ class MyMongoDB:
 			print(i['city'], i['final_date'])
 
 
-	def analyze_cities(self, cities, start, end, start_ny, end_ny):
+	def analyze_cities(self, start, end, start_ny, end_ny, cities):
 		"""
 			For OUR cities, check how many cars are available, how many bookings
 			have been recorded during a period and if there is an alterate transport method
@@ -94,14 +94,86 @@ class MyMongoDB:
 
 			unix_start = time.mktime(start_date.timetuple())
 			unix_end = time.mktime(end_date.timetuple())
-			
-			avb_cars = self.act_pk.count({'city':c})
-			if c == 'Torino':
-				avb_cars_enj = self.act_pk_enj.count({'city':c})
-			else:
-				avb_cars_enj = ''
+			cars = 0
+			avb_cars_bk = (self.act_bk.aggregate([
+				{
+					'$match':{
+						'city':c
+					}
+				},
+				{
+					'$group':{
+						'_id':'$plate'
+					}
+				},
+				{
+					'$count':'plate'
+				}
+				]))
+			for a in avb_cars_bk:
+				cars += a['plate']
 
-			print('%d cars in %s'%(avb_cars, c))
+			avb_cars_pk = (self.act_pk.aggregate([
+				{
+					'$match':{
+						'city':c
+					}
+				},
+				{
+					'$group':{
+						'_id':'$plate'
+					}
+				},
+				{
+					'$count':'plate'
+				}
+				]))
+
+			for a in avb_cars_pk:
+				cars += a['plate']
+
+			cars_enj = 0
+			if c == 'Torino':
+				avb_cars_bk_enj = self.per_bk_enj.aggregate([
+				{
+					'$match':{
+						'city':c
+					}
+				},
+				{
+					'$group':{
+						'_id':'$plate'
+					}
+				},
+				{
+					'$count':'plate'
+				}
+				])
+				for a in avb_cars_bk_enj:
+					cars_enj += a['plate']
+
+				# avb_cars_pk_enj = (self.act_pk_enj.aggregate([
+				# {
+				# 	'$match':{
+				# 		'city':c
+				# 	}
+				# },
+				# {
+				# 	'$group':{
+				# 		'_id':'$plate'
+				# 	}
+				# },
+				# {
+				# 	'$count':'plate'
+				# }
+				# ]))
+				# for a in avb_cars_pk_enj:
+				# 	cars_enj += a['plate']
+			else:
+				avb_cars_bk_enj = ''
+				avb_cars_pk_enj = ''
+
+			# print('%d cars in %s'%(avb_cars, c))
 			bk_in_date = self.per_bk.count({
 				'city':c,
 				'init_time':{'$gte':unix_start,'$lte':unix_end}})
@@ -117,8 +189,8 @@ class MyMongoDB:
 				'walking.duration':{'$ne':-1}})
 			# print('%f bookings with alternative mode transportation in %s'%(alt_trans,c))
 			tmp_obj = {
-				'AvailableCars':avb_cars,
-				'AvailableCars_enj':avb_cars_enj,
+				'AvailableCars':cars,
+				'AvailableCars_enj':cars_enj,
 				'BookingsDate':bk_in_date,
 				'PublicTransport':pub_trans,
 				'Walking':walk_trans,
@@ -128,7 +200,7 @@ class MyMongoDB:
 
 		pprint(self.container)
 
-	def CDF(self, start_date, end_date, cities):
+	def CDF(self, start_date, end_date, start_ny, end_ny, cities):
 		"""
 			Calculate the CDF for the cities over the duration of parkings and bookings.
 		"""
@@ -143,13 +215,14 @@ class MyMongoDB:
 		for c in cities:
 			print(c)
 			if c == 'New York City':
-				start_date = datetime.datetime(start_date.year,	start_date.month, start_date.day, 
-					start_date.hour, start_date.minute, start_date.second, tzinfo=timezone('US/Eastern'))
-				end_date = datetime.datetime(end_date.year,	end_date.month, end_date.day, 
-					end_date.hour, end_date.minute, end_date.second, tzinfo=timezone('US/Eastern'))
+				start_date = start_ny
+				end_date = end_ny
+			else:
+				start_date = start_date
+				end_date = end_date
 
-			unix_start = time.mktime(start.timetuple())
-			unix_end = time.mktime(end.timetuple())
+			unix_start = time.mktime(start_date.timetuple())
+			unix_end = time.mktime(end_date.timetuple())
 
 			duration_parking = (self.per_pk.aggregate([
 				{
@@ -207,6 +280,8 @@ class MyMongoDB:
 			axs[1].set_xscale('log')
 
 		axs[0].set_title('CDF Parking/Booking Duration')
+		# axs[0].set('Duration (s)')
+		plt.xlabel('Duration (s)')
 
 		# axs[0].set_title('CDF Booking Duration')
 		plt.legend()
@@ -215,7 +290,7 @@ class MyMongoDB:
 		# axs[0].savefig('Plots/CDF Booking')
 		# plt.show()
 
-	def CDF_weekly(self, start_date, end_date, cities):
+	def CDF_weekly(self, start_date, end_date, start_ny, end_ny, cities):
 		"""	
 			Calculate the CDF over the duratio of parking and booking aggregating for
 			day of the week (or by week)
@@ -224,15 +299,64 @@ class MyMongoDB:
 		for c in cities:
 			print(c)
 			if c == 'New York City':
-				start_date = datetime.datetime(start_date.year,	start_date.month, start_date.day, 
-					start_date.hour, start_date.minute, start_date.second, tzinfo=timezone('US/Eastern'))
-				end_date = datetime.datetime(end_date.year,	end_date.month, end_date.day, 
-					end_date.hour, end_date.minute, end_date.second, tzinfo=timezone('US/Eastern'))
-				
-			unix_start = time.mktime(start.timetuple())
-			unix_end = time.mktime(end.timetuple())
+				start_date = start_ny
+				end_date = end_ny
+			else:
+				start_date = start_date
+				end_date = end_date
+
+			unix_start = time.mktime(start_date.timetuple())
+			unix_end = time.mktime(end_date.timetuple())
 
 			duration_parking = (self.per_pk.aggregate([
+				{
+					'$match':{
+						'city':c,
+						'init_time':{'$gte':unix_start,'$lte':unix_end}
+						}
+					},
+				{
+					'$project':{
+						'duration':{
+							'$subtract':['$final_time','$init_time'],
+						},
+						"weekOfMonth": {'$floor': 
+							{
+								'$divide': [{'$dayOfMonth': "$init_date"}, 7]}
+							},
+					},
+				},
+				{
+					'$group':{	
+						'_id':'$weekOfMonth',
+						'd':{'$push':'$duration'}
+					}
+				},
+				{
+					'$sort':{
+						'_id':1
+					}
+				}
+				]))
+
+			# cdf_parking = []
+			plt.figure(figsize=(15,6))
+			for i in duration_parking:
+				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
+				week = int(i['_id']) + 1
+				plt.plot(np.sort(np.array(i['d'])),p, label='Week {}'.format(week))
+
+			
+			# plt.figsize()
+			plt.legend()
+			plt.xlabel('Duration (s)')
+			plt.gcf().autofmt_xdate()
+			# plt.grid()
+			plt.xscale('log')
+			plt.title('CDF of Parking Duration for {}'.format(c))
+			plt.savefig('Plots/Weekly_CDF_of_Parking_Duration_for_{}'.format(c), dpi=600)
+
+			duration_booking = (self.per_bk.aggregate([
 				{
 					'$match':{
 						'city':c,
@@ -263,51 +387,6 @@ class MyMongoDB:
 				}
 				]))
 
-			# cdf_parking = []
-			plt.figure(figsize=(15,6))
-			for i in duration_parking:
-				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
-				week = int(i['_id']) + 1
-				plt.plot(np.sort(np.array(i['d'])),p, label='Week {}'.format(week))
-
-			
-			# plt.figsize()
-			plt.legend()
-			plt.gcf().autofmt_xdate()
-			# plt.grid()
-			plt.xscale('log')
-			plt.title('CDF of Parking Duration for {}'.format(c))
-			plt.savefig('Plots/Weekly CDF of Parking Duration for {}'.format(c), dpi=600)
-
-			duration_booking = (self.per_bk.aggregate([
-				{
-					'$match':{
-						'city':c,
-						'init_time':{'$gte':unix_start,'$lte':unix_end}
-						}
-					},
-				{
-					'$project':{
-						'duration':{
-							'$subtract':['$final_time','$init_time'],
-						},
-						"weekOfMonth": {'$floor': 
-							{
-								'$divide': [{'$dayOfMonth': "$init_date"}, 7]}
-							}
-					},
-				},
-				{
-					'$group':{	
-						'_id':'$weekOfMonth',
-						'd':{'$push':'$duration'}
-					}
-				},
-				# {
-				# 	'$limit':100
-				# }
-				]))
-
 			plt.figure(figsize=(15,6))
 			for i in duration_booking:
 				p = 1. * np.arange(len(i['d'])) / (len(i['d'])-1)
@@ -315,40 +394,36 @@ class MyMongoDB:
 				plt.plot(np.sort(np.array(i['d'])),p, label='Week {}'.format(week))
 
 			plt.legend()
+			plt.xlabel('Duration (s)')
 			plt.gcf().autofmt_xdate()
 			# plt.grid()
 			plt.xscale('log')
 			plt.title('CDF of Booking Duration for {}'.format(c))
-			plt.savefig('Plots/Weekly CDF of Booking Duration for {}'.format(c), dpi=600)
+			plt.savefig('Plots/Weekly_CDF_of_Booking_Duration_for_{}'.format(c), dpi=600)
 
 			# print(list(duration_parking))
 			# exit()
 
-	def statistics(self, cities, start_date, end_date, bk=True, days=[d for d in range(1,31+1)]):
+	def statistics(self, start_date, end_date, start_ny, end_ny, cities, days=[d for d in range(1,31+1)]):
 		"""
 			Calculate meaningful statistics on the data. Statistics chosen are 
 			Average, Median, Standard Deviation and 75th Percentile
 		"""
 
 		#TODO: Insert right filtering and create meaningful plot.
-		from matplotlib import dates
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
-		# xtick = np.arange(31, [datetime.datetime(2017,10,day).date() for day in range(1, 31+1)])
-		# fig, (ax1) = plt.subplots(4, sharey=True)
-		# print(len(ax1),len(ax2))
-		# exit()
-		# sb.set()
+		
 		sb.set_style('darkgrid')
 		for c in cities:
 			print(c)
 			if c == 'New York City':
-				start_date = datetime.datetime(start_date.year,	start_date.month, start_date.day, 
-					start_date.hour, start_date.minute, start_date.second, tzinfo=timezone('US/Eastern'))
-				end_date = datetime.datetime(end_date.year,	end_date.month, end_date.day, 
-					end_date.hour, end_date.minute, end_date.second, tzinfo=timezone('US/Eastern'))
-			unix_start = time.mktime(start.timetuple())
-			unix_end = time.mktime(end.timetuple())
+				start_date = start_ny
+				end_date = end_ny
+			else:
+				start_date = start_date
+				end_date = end_date
+
+			unix_start = time.mktime(start_date.timetuple())
+			unix_end = time.mktime(end_date.timetuple())
 
 			stats_booking = self.per_bk.aggregate([
 				{
@@ -407,15 +482,16 @@ class MyMongoDB:
 			# plt.set_title('StandardDeviation')
 			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
 			# plt.set_title('Median')
-			plt.plot([x[3] for x in stats],'-.', label='75th Percentile')
+			plt.plot([x[3] for x in stats],'-.', marker='o', label='75th Percentile')
 			plt.title('City of {}'.format(c))
 			
 			plt.legend()
 			plt.gcf().autofmt_xdate()
 			# plt.grid()
 			plt.xticks(np.arange(31), days, rotation=30)
+			plt.ylabel('Duration (s)')
 			# plt.savefig('Plots/City of {} - Bookings Statistics.png'.format(c), dpi=300)
-			plt.savefig('Plots/City of {} - Bookings Statistics.png'.format(c), dpi=600)
+			plt.savefig('Plots/City_of_{}_-_Bookings_Statistics.png'.format(c), dpi=600)
 		
 			stats_parking = self.per_pk.aggregate([
 				{
@@ -478,11 +554,12 @@ class MyMongoDB:
 			plt.title('City of {}'.format(c))
 			
 			plt.legend()
+			plt.ylabel('Duration (s)')
 			plt.gcf().autofmt_xdate()
 			# plt.grid()
 			plt.xticks(np.arange(31), days, rotation=30)
 			# plt.savefig('Plots/City of {} - Parkings Statistics.png'.format(c), dpi=300)
-			plt.savefig('Plots/City of {} - Parkings Statistics.png'.format(c), dpi=600)			
+			plt.savefig('Plots/City_of_{}_-_Parkings_Statistics.png'.format(c), dpi=600)			
 
 	def density(self, start, end, city):
 		"""
