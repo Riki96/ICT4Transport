@@ -1,6 +1,7 @@
 import pymongo as pm
 from pprint import pprint
 import datetime
+from pytz import timezone
 from scipy import stats
 import numpy as np
 import time
@@ -36,18 +37,12 @@ class MyMongoDB:
 		"""
 			Count how many docs are present in each collection
 		"""
-		self.n_per_bk = self.per_bk.find({}).count()
-		self.n_per_pk = self.per_pk.find({}).count()
-		self.n_act_bk = self.act_bk.find({}).count()
-		self.n_act_pk = self.act_pk.find({}).count()
+		for collection in self.db.list_collection_names():
+			print('Collection {} has {} documents'.format(collection, self.db[collection].find({}).count()))
 
-		self.n_per_bk_enj = self.per_bk_enj.find({}).count()
-		self.n_per_pk_enj = self.per_pk_enj.find({}).count()
-		self.n_act_bk_enj = self.act_bk_enj.find({}).count()
-		self.n_act_pk_enj = self.act_pk_enj.find({}).count()
-
-		print(self.n_per_bk, self.n_per_pk, self.n_act_bk, self.n_act_pk)
-		print(self.n_per_bk_enj, self.n_per_pk_enj, self.n_act_bk_enj, self.n_act_pk_enj)
+		# print(self.n_per_bk, self.n_per_pk, self.n_act_bk, self.n_act_pk)
+		# print(self.n_per_bk_enj, self.n_per_pk_enj, self.n_act_bk_enj, self.n_act_pk_enj)
+		# print()
 
 	def list_cities(self):
 		"""
@@ -55,48 +50,57 @@ class MyMongoDB:
 		"""
 		self.list_cities = self.per_bk.distinct('city')
 		self.list_cities_enj = self.per_pk_enj.distinct('city')
-		pprint(sorted(self.list_cities))
-		pprint(sorted(self.list_cities_enj))
+		print(sorted(self.list_cities), len(self.list_cities))
+		print(sorted(self.list_cities_enj), len(self.list_cities_enj))
 
 		for l in self.list_cities:
 			print('City:{} - Number:{}'.format(l,self.per_bk.count({'city':l})))
 
 		for l in self.list_cities_enj:
-			print('City:{} \t Number:{}'.format(l,self.per_bk_enj.count({'city':l})))
+			print('City:{} - (Enjoy) Number:{}'.format(l,self.per_bk_enj.count({'city':l})))
 
 	def sort_collection(self):
 		"""
 			Sort the collection to see when it started/ended
-			//TODO//
-				ASK PROFESSOR
-			//TODO//
 		"""
 		# pprint(self.per_bk.index_information())
 		init_sort = self.per_pk.find({'init_time':{'$lt':1481650748}}).sort(
-			'init_time',1)
+			'init_time',1).limit(1)
 		
-		print(list(init_sort)[0]['init_date'])
+		# print(list(init_sort)[0]['init_date'])
+		for i in init_sort:
+			print(i['city'], i['init_date'])
 
 		sort_init = self.per_pk.find({'init_time':{'$gt':1500000000}}).sort(
-			'init_time',-1)
-		print(list(sort_init)[0]['final_date'])
+			'init_time',-1).limit(1)
+		# print(list(sort_init)[0]['final_date'])
+		for i in sort_init:
+			print(i['city'], i['final_date'])
 
 
-	def analyze_cities(self, cities, start_date, end_date):
+	def analyze_cities(self, cities, start, end, start_ny, end_ny):
 		"""
 			For OUR cities, check how many cars are available, how many bookings
 			have been recorded during a period and if there is an alterate transport method
 		"""
-		unix_start = time.mktime(start_date.timetuple())
-		unix_end = time.mktime(end_date.timetuple())
-
 		for c in cities:
 			print(c)
+			if c == 'New York City':
+				start_date = start_ny
+				end_date = end_ny
+			else:
+				start_date = start
+				end_date = end
+
+			unix_start = time.mktime(start_date.timetuple())
+			unix_end = time.mktime(end_date.timetuple())
+			
 			avb_cars = self.act_pk.count({'city':c})
 			if c == 'Torino':
 				avb_cars_enj = self.act_pk_enj.count({'city':c})
 			else:
 				avb_cars_enj = ''
+
 			print('%d cars in %s'%(avb_cars, c))
 			bk_in_date = self.per_bk.count({
 				'city':c,
@@ -124,15 +128,12 @@ class MyMongoDB:
 
 		pprint(self.container)
 
-	def CDF(self, start, end, cities):
+	def CDF(self, start_date, end_date, cities):
 		"""
 			Calculate the CDF for the cities over the duration of parkings and bookings.
 		"""
 
 		#TODO: Insert also enjoy_data
-
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
 
 		sb.set_style('darkgrid')
 		fig, axs = plt.subplots(2)
@@ -141,6 +142,15 @@ class MyMongoDB:
 		start_time = time.time()
 		for c in cities:
 			print(c)
+			if c == 'New York City':
+				start_date = datetime.datetime(start_date.year,	start_date.month, start_date.day, 
+					start_date.hour, start_date.minute, start_date.second, tzinfo=timezone('US/Eastern'))
+				end_date = datetime.datetime(end_date.year,	end_date.month, end_date.day, 
+					end_date.hour, end_date.minute, end_date.second, tzinfo=timezone('US/Eastern'))
+
+			unix_start = time.mktime(start.timetuple())
+			unix_end = time.mktime(end.timetuple())
+
 			duration_parking = (self.per_pk.aggregate([
 				{
 					'$match':{
@@ -170,6 +180,7 @@ class MyMongoDB:
 					},
 				}
 				])
+
 			lst_parking = []
 			lst_booking = []
 			cnt = 0
@@ -204,22 +215,23 @@ class MyMongoDB:
 		# axs[0].savefig('Plots/CDF Booking')
 		# plt.show()
 
-	def CDF_weekly(self, start, end, cities):
+	def CDF_weekly(self, start_date, end_date, cities):
 		"""	
 			Calculate the CDF over the duratio of parking and booking aggregating for
 			day of the week (or by week)
 		"""
-
-		#TODO: Create meaningful plots for booking and parking
-
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
-		# plt.figure()
-		cnt = 0
 		sb.set_style('darkgrid')
 		for c in cities:
 			print(c)
-			
+			if c == 'New York City':
+				start_date = datetime.datetime(start_date.year,	start_date.month, start_date.day, 
+					start_date.hour, start_date.minute, start_date.second, tzinfo=timezone('US/Eastern'))
+				end_date = datetime.datetime(end_date.year,	end_date.month, end_date.day, 
+					end_date.hour, end_date.minute, end_date.second, tzinfo=timezone('US/Eastern'))
+				
+			unix_start = time.mktime(start.timetuple())
+			unix_end = time.mktime(end.timetuple())
+
 			duration_parking = (self.per_pk.aggregate([
 				{
 					'$match':{
@@ -312,7 +324,7 @@ class MyMongoDB:
 			# print(list(duration_parking))
 			# exit()
 
-	def statistics(self, cities, start, end, bk=True, days=[d for d in range(1,31+1)]):
+	def statistics(self, cities, start_date, end_date, bk=True, days=[d for d in range(1,31+1)]):
 		"""
 			Calculate meaningful statistics on the data. Statistics chosen are 
 			Average, Median, Standard Deviation and 75th Percentile
@@ -330,6 +342,14 @@ class MyMongoDB:
 		sb.set_style('darkgrid')
 		for c in cities:
 			print(c)
+			if c == 'New York City':
+				start_date = datetime.datetime(start_date.year,	start_date.month, start_date.day, 
+					start_date.hour, start_date.minute, start_date.second, tzinfo=timezone('US/Eastern'))
+				end_date = datetime.datetime(end_date.year,	end_date.month, end_date.day, 
+					end_date.hour, end_date.minute, end_date.second, tzinfo=timezone('US/Eastern'))
+			unix_start = time.mktime(start.timetuple())
+			unix_end = time.mktime(end.timetuple())
+
 			stats_booking = self.per_bk.aggregate([
 				{
 					'$match':{
@@ -381,7 +401,7 @@ class MyMongoDB:
 				stats.append((i['avg'],i['std'],med,perc_75))
 
 			plt.figure(figsize=(15,6))	
-			plt.plot([x[0] for x in stats], label='Average')
+			plt.plot([x[0] for x in stats], label='Average', linewidth=2)
 			# plt.set_title('Average')
 			plt.plot([x[1] for x in stats], label='Standard Deviation')
 			# plt.set_title('StandardDeviation')
@@ -649,6 +669,85 @@ class MyMongoDB:
 		OriginDestination = pandas.DataFrame(OD)
 		OriginDestination.to_excel('OriginDestination_Matrix.xlsx')
 
+	def filtering(self, start, end):
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())		
+		duration_parking = self.per_pk.aggregate([
+			{
+				'$match':{
+					'city':'Torino',
+					'init_time':{'$gte':unix_start,'$lte':unix_end}}
+				},
+			{
+				'$project':{
+					'duration':{
+						'$subtract':['$final_time','$init_time']
+					},
+					'init_time':1,
+					'plate':1
+				},
+			},
+			])
+		plt.plot()
+		duration_parking = (self.per_pk.aggregate([
+			{
+				'$match':{
+					'city':'Torino',
+					'init_time':{'$gte':unix_start,'$lte':unix_end}}
+				},
+			{
+				'$project':{
+					'duration':{
+						'$subtract':['$final_time','$init_time']
+					},
+					'init_time':1,
+					'plate':1
+				},
+			},
+			{
+				'$match':{
+					'duration':{
+						'$gte':5,
+						'$lte':10*60
+					}
+				}
+			},
+			{
+				'$project':{
+					'd':{
+						'$divide':['$init_time',60]
+					},
+					'plate':1
+					# 'r':{
+					# 	'$trunc':'$d'
+					# }
+				}
+			},
+			{
+				'$project':{
+					'r':{
+							'$trunc':'$d'
+						},
+						'plate':1
+				}
+			},
+			{
+				'$group':{
+					'_id':'$r',
+					'arr':{'$push':'$plate'}
+				}
+			},
+			{
+				'$sort':{
+					'_id':1
+				}
+			}
+					
+			]))
+		plt.plot([len(x['arr']) for x in duration_parking])
+		plt.show()
+
+
 
 def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
 	z = np.linspace(0,0.1,15)
@@ -665,25 +764,3 @@ def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
 	Area_D = 15*D_Long + D_Lat
 
 	return Area_O, Area_D
-
-
-			
-
-if __name__ == '__main__':
-
-	cities = ['Torino','New York City','Amsterdam']
-
-	DB = MyMongoDB()
-	# DB.list_documents()
-	# DB.list_cities()
-	# DB.sort_collection()
-
-	start = datetime.datetime(2017,10,1)
-	end = datetime.datetime(2017,10,31,23,59,59)
-	# DB.analyze_cities(cities, start, end)
-	# DB.statistics(cities, start, end)
-	DB.CDF(start,end,cities)
-	DB.CDF_weekly(start, end, cities)
-	# DB.density_grid(start, end)
-	# DB.OD_matrix(start, end)
-	# DB.filtering(start, end)
