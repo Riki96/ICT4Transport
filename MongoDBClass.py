@@ -7,11 +7,13 @@ import time
 import matplotlib.pyplot as plt
 import statistics
 import pandas as pd
-#import seaborn as sb
+import seaborn as sb
 from matplotlib import dates
 
 class MyMongoDB:
 	def __init__(self):
+		# sns.set()
+
 		client = pm.MongoClient('bigdatadb.polito.it',
 			ssl=True,
 			authSource = 'carsharing',
@@ -206,6 +208,9 @@ class MyMongoDB:
 		"""
 
 		#TODO: Insert also enjoy_data
+		# sns.set_style('darkgrid')
+		unix_start = time.mktime(start.timetuple())
+		unix_end = time.mktime(end.timetuple())
 
 		sb.set_style('darkgrid')
 		fig, axs = plt.subplots(2)
@@ -267,7 +272,11 @@ class MyMongoDB:
 			lst_parking = np.array(lst_parking)
 			lst_booking = np.array(lst_booking)
 
+			# np.save('cdf.npy', lst_parking)
+			# exit()
+
 			p = 1. * np.arange(len(lst_parking)) / (len(lst_parking)-1)
+			# sns.relplot(data=p)
 			
 			axs[0].plot(np.sort(lst_parking),p, label=c)
 			# axs[0].grid()
@@ -493,8 +502,6 @@ class MyMongoDB:
 					summ = sum(row['duration'])	
 					dataframe.at[index,'duration'] = summ
 					
-				
-
 					oct_matrix[dataframe.loc[index,'day']-274][dataframe.loc[index,'hour']] += 1
 
 					if dataframe.loc[index,'duration'] > 1:
@@ -534,10 +541,7 @@ class MyMongoDB:
 					rentals_hour[c][a][Day]/=3
 
 					i+=1
-				
-
-
-
+			
 				print ('************')
 				print ('city: '+c+'\tcollection: '+a)
 				print (rentals_hour[c][a]['Monday'])
@@ -728,8 +732,6 @@ class MyMongoDB:
 				for Day in dayOfWeek:
 					#rentals_hour[c][a][Day]= np.zeros(shape=(1,24))
 					rentals_hour[c][a][Day]= np.zeros(24)
-
-			
 					for k in range(3):
 						rentals_hour[c][a][Day]+= oct_matrix[(i+(k*7)),:]
 
@@ -779,11 +781,6 @@ class MyMongoDB:
 			plt.legend()
 			plt.savefig('Plots/'+c+'Filtered_Bookings_vs_hour.png')
 			plt.close()
-
-
-
-
-
 
 	def statistics(self, start_date, end_date, start_ny, end_ny, cities, days=[d for d in range(1,31+1)]):
 		"""
@@ -1123,6 +1120,9 @@ class MyMongoDB:
 			# print(O,D)
 			OD[O, D] += 1
 
+		OD = pandas.DataFrame(OD)
+		OD.to_csv('OriginDestination_Matrix.csv')
+		print(OD)
 		# exit()
 		OriginDestination = pandas.DataFrame(OD)
 		OriginDestination.to_excel('OriginDestination_Matrix.xlsx')
@@ -1206,7 +1206,6 @@ class MyMongoDB:
 		plt.show()
 
 
-
 def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
 	z = np.linspace(0,0.1,15)
 	lo = np.array([x + long_min for x in z])
@@ -1222,3 +1221,4 @@ def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
 	Area_D = 15*D_Long + D_Lat
 
 	return Area_O, Area_D
+
