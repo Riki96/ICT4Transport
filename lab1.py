@@ -46,11 +46,6 @@ class MyMongoDB:
 	def visualization(self,start,end,cities):
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		# x_vect=[]
-		# cnt=0
-		# for a in range(1440):
-		# 	x_vect.append(cnt//60)
-		# 	cnt+=1
 
 		# 0->Turin
 		# 1->NYC
@@ -116,22 +111,18 @@ class MyMongoDB:
 					'init_time':{'$gte':unix_start,'$lte':unix_end}
 					}
 				},
+				# FILTER PART -------------------------------------------------------
 				{
 				'$project':{
 					'init_date':1,
 					'init_time':1,
 					'city':1,
-					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
-					'minute':{'$minute':'$init_date'},
-					'hour':{'$hour':'$init_date'},
-					'day':{'$dayOfMonth':'$init_date'},
-					'moved': { '$ne': [
-						{'$arrayElemAt': [ "$origin_destination.coordinates", 0]},
-						{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}]
-						},
+					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },  
+					'minute':{'$minute':'$init_date'}, # no useful for filtering
+					'hour':{'$hour':'$init_date'}, # no useful for filtering
+					'day':{'$dayOfMonth':'$init_date'}, # no useful for filtering
 					'dist_lat':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 0]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 0]}]}},
 					'dist_long':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 1]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 1]}]}},
-					
 					}
 				},
 				{'$match':{
@@ -140,8 +131,9 @@ class MyMongoDB:
 						{'dist_lat':{'$gte':0.0003}},
 						],
 					'duration':{'$lte':180,'$gte':2},
-					# 'moved':True,
-					}},
+					}
+				},
+				# FILTER PART ENDS -------------------------------------------------------
 				{
 				'$group':{
 					'_id':{
@@ -210,6 +202,7 @@ class MyMongoDB:
 					'final_time':1,
 					'city':1,
 					'plate':1,
+					'loc':1,
 					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
 					}
 				},
@@ -224,6 +217,7 @@ class MyMongoDB:
 					'count':{'$sum':1},
 					'initials':{'$push':'$init_time'},
 					'finals':{'$push':'$final_time'},
+					'coordinates':{'$push':'$loc.coordinates'}
 					}
 				},
 				])
@@ -236,37 +230,35 @@ class MyMongoDB:
 
 			for f in temp_filt_pk:
 				plate = f['_id']['plate']
+				coordinates = f['coordinates']
 				start_time, final_time = np.sort(f['initials']), np.sort(f['finals'])
 				 
-				#FILTERING
+				# FILTERING
+				# print('------------------------------------')
+				# print(len(start_time))
+				new_st_time = []
+				new_fn_time = []
+				CNT = 0
 				for i in range(1,len(start_time)):
-				
-					try:
-						day = int(datetime.datetime.utcfromtimestamp(start_time[i]).strftime('%d'))
-						hour = int(datetime.datetime.utcfromtimestamp(start_time[i]).strftime('%H'))
-						minute = int(datetime.datetime.utcfromtimestamp(start_time[i]).strftime('%M'))
-						pk_duration = start_time[i+1] - final_time[i]
-						if pk_duration <= 180:
-							print('pippo:',pk_duration,day,hour,minute)
-							start_time[i+1] = start_time[i-1]
-							start_time = np.delete(start_time, i)
-							start_time = np.delete(start_time, i-1)
-							final_time = np.delete(final_time, i)
-							final_time = np.delete(final_time, i-1)
-							i=1
-					except IndexError:
-						pass
+					pk_duration = start_time[i]-final_time[i-1]
+					distance = abs(coordinates[i][0] - coordinates[i-1][0] + coordinates[i][1] - coordinates[i-1][1])
+					if distance > 0.0005 and pk_duration >= 300:
+						new_st_time.append(start_time[CNT])
+						new_fn_time.append(final_time[i-1])
+						CNT = i
+				# print('st_time',len(new_st_time))
 
-				for index in range(len(start_time)):
-					day = int(datetime.datetime.utcfromtimestamp(start_time[index]).strftime('%d'))
-					hour = int(datetime.datetime.utcfromtimestamp(start_time[index]).strftime('%H'))
-					minute = int(datetime.datetime.utcfromtimestamp(start_time[index]).strftime('%M'))
-					try:
-						pk_duration = start_time[index+1] - final_time[index]
-						if pk_duration<180:
-							print('gianni:',pk_duration,day,hour,minute)
-					except IndexError:
-						pass
+				for index in range(1,len(new_st_time)):
+					day = int(datetime.datetime.utcfromtimestamp(new_st_time[index]).strftime('%d'))
+					hour = int(datetime.datetime.utcfromtimestamp(new_st_time[index]).strftime('%H'))
+					minute = int(datetime.datetime.utcfromtimestamp(new_st_time[index]).strftime('%M'))
+
+					pk_duration = new_st_time[index] - new_fn_time[index-1]
+					if pk_duration<300:
+						print(datetime.datetime.utcfromtimestamp(new_st_time[index-1]).strftime('%d %H:%M'),'-->',datetime.datetime.utcfromtimestamp(new_fn_time[index-1]).strftime('%d %H:%M'))
+						print(datetime.datetime.utcfromtimestamp(new_st_time[index]).strftime('%d %H:%M'),'-->',datetime.datetime.utcfromtimestamp(new_fn_time[index]).strftime('%d %H:%M'))
+						print('gianni:',pk_duration,day,hour,minute)
+					
 					pk_filtered[city][day]['%02d:%02d'%(hour,minute)] += 1
 					# print(pk_filtered[city][day]['%02d:%02d'%(hour,minute)])
 
@@ -280,31 +272,46 @@ class MyMongoDB:
 		n_filt_pk = copy.deepcopy(n_bk)
 
 		for city in cities:
-			plt.figure()
-
+			plot_tot_bk, plot_tot_pk, plot_filt_tot_pk, plot_filt_tot_bk = [], [], [], []
 			for x in range(1,31):
 				plot_bk = list(bk_collector[city][x].values())
 				plot_pk = list(pk_collector[city][x].values())
+
 				n_bk[city].append(sum(plot_bk))
 				n_pk[city].append(sum(plot_pk))
-				if x==1:
+				# if x==1:
 					# plt.plot(plot_bk,'r', label='Not filtered data')
-					plt.plot(plot_pk,'r', label='Not filtered data')
-				else:
+					# plt.plot(plot_pk,'r', label='Not filtered data on day: %d'%x)
+				# else:
 					# plt.plot(plot_bk,'r')
-					plt.plot(plot_pk,'r')
+					# plt.plot(plot_pk,'r')
 
 				plot_filt_bk = list(bk_filtered[city][x].values())
 				plot_filt_pk = list(pk_filtered[city][x].values())
+
 				n_filt_bk[city].append(sum(plot_filt_bk))
 				n_filt_pk[city].append(sum(plot_filt_pk))
-				if x==1:
+				# if x==1:
 				# 	plt.plot(plot_filt_bk,'b', label='Filtered data')
-					plt.plot(plot_filt_pk,'b', label='Filtered data')
-				else:
+					# plt.plot(plot_filt_pk,'b', label='Filtered data on day: %d'%x)
+				# else:
 				# 	plt.plot(plot_filt_bk,'b')
-					plt.plot(plot_filt_pk,'b')
+					# plt.plot(plot_filt_pk,'b')
+				for y in range(len(plot_pk)):
+					plot_tot_bk.append(plot_bk[y])
+					plot_tot_pk.append(plot_pk[y])
+					plot_filt_tot_bk.append(plot_filt_bk[y])
+					plot_filt_tot_pk.append(plot_filt_pk[y])
+			plt.figure()
+			plt.title('Bookings in '+str(city))
+			plt.plot(plot_tot_bk, 'r', label='Not filtered Data')
+			plt.plot(plot_filt_tot_bk, 'b', label='Filtered Data')
+			plt.legend()
 
+			plt.figure()
+			plt.title('Parkings in '+str(city))
+			plt.plot(plot_tot_pk, 'r', label='Not filtered Data')
+			plt.plot(plot_filt_tot_pk, 'b', label='Filtered Data')
 			plt.legend()
 			plt.show()
 
