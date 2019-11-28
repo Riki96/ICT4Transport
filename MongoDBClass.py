@@ -12,7 +12,7 @@ from matplotlib import dates
 
 class MyMongoDB:
 	def __init__(self):
-		# sns.set()
+		sb.set()
 
 		client = pm.MongoClient('bigdatadb.polito.it',
 			ssl=True,
@@ -151,29 +151,6 @@ class MyMongoDB:
 					'$count':'plate'
 				}
 				])
-				for a in avb_cars_bk_enj:
-					cars_enj += a['plate']
-
-				# avb_cars_pk_enj = (self.act_pk_enj.aggregate([
-				# {
-				# 	'$match':{
-				# 		'city':c
-				# 	}
-				# },
-				# {
-				# 	'$group':{
-				# 		'_id':'$plate'
-				# 	}
-				# },
-				# {
-				# 	'$count':'plate'
-				# }
-				# ]))
-				# for a in avb_cars_pk_enj:
-				# 	cars_enj += a['plate']
-			else:
-				avb_cars_bk_enj = ''
-				avb_cars_pk_enj = ''
 
 			# print('%d cars in %s'%(avb_cars, c))
 			bk_in_date = self.per_bk.count({
@@ -192,7 +169,6 @@ class MyMongoDB:
 			# print('%f bookings with alternative mode transportation in %s'%(alt_trans,c))
 			tmp_obj = {
 				'AvailableCars':cars,
-				'AvailableCars_enj':cars_enj,
 				'BookingsDate':bk_in_date,
 				'PublicTransport':pub_trans,
 				'Walking':walk_trans,
@@ -273,8 +249,6 @@ class MyMongoDB:
 			lst_booking = np.array(lst_booking)
 
 			# np.save('cdf.npy', lst_parking)
-			# exit()
-
 			p = 1. * np.arange(len(lst_parking)) / (len(lst_parking)-1)
 			# sns.relplot(data=p)
 			
@@ -410,17 +384,11 @@ class MyMongoDB:
 			plt.title('CDF of Booking Duration for {}'.format(c))
 			plt.savefig('Plots/Weekly_CDF_of_Booking_Duration_for_{}'.format(c), dpi=600)
 
-			# print(list(duration_parking))
-			# exit()
 	def system_utilization(self,start, end,startNY,endNY, cities):
 		#numero2 NOT filtered
 	
 		collections = ['parkings','bookings']
 		rentals_hour = {}
-
-		#DAYS OF THE YEAR
-		#1 OTTOBRE = 274
-		#31 OTTOBRE = 304
 
 		for c in cities:
 			if c == 'New York City':
@@ -429,14 +397,8 @@ class MyMongoDB:
 			else:
 				unix_start = time.mktime(start.timetuple())
 				unix_end = time.mktime(end.timetuple())
-
-
 			rentals_hour[c]={}
-
 			for a in collections:
-				#creating dict for each city
-				
-				print ('===========')
 				print (c) 
 				if a == 'parkings':
 
@@ -452,9 +414,8 @@ class MyMongoDB:
 		        						"_id":{'hour':{'$hour':'$init_date'},'day':{'$dayOfYear':'$init_date'},'plate':'$plate'},
 		        						"duration":{'$push':{'$divide':[{'$subtract':['$final_time','$init_time']},3600]}}	
 		        						}
-		        				}
-		            						
-							]
+		        					}			
+								]
 							)
 				elif a == 'bookings':
 					tmp_selection = self.per_bk.aggregate([
@@ -464,15 +425,13 @@ class MyMongoDB:
 							'init_time':{'$gte':unix_start,'$lte':unix_end}
 							}
 						},
-
-							{ "$group": {
-		        						"_id":{'hour':{'$hour':'$init_date'},'day':{'$dayOfYear':'$init_date'},'plate':'$plate'},
-		        						"duration":{'$push':{'$divide':[{'$subtract':['$final_time','$init_time']},3600]}}	
-		        						}
-		        				}
-		            						
-							]
-							)
+					{
+						 "$group": {
+        							"_id":{'hour':{'$hour':'$init_date'},'day':{'$dayOfYear':'$init_date'},'plate':'$plate'},
+        							"duration":{'$push':{'$divide':[{'$subtract':['$final_time','$init_time']},3600]}}	
+        						}
+        				},			
+					])
 
 				hour = []
 				dayOfYear =[]
@@ -485,7 +444,6 @@ class MyMongoDB:
 					plate.append(i['_id']['plate'])
 					duration.append(list(map(int,i['duration'])))
 
-
 				dataframe = pd.DataFrame({
 				 						'hour': hour,
 				 						'day':dayOfYear,
@@ -494,7 +452,6 @@ class MyMongoDB:
 			
 				
 				dataframe = dataframe.sort_values(by=['plate', 'day', 'hour'])
-
 
 				oct_matrix = np.zeros((31,24)) 
 			
@@ -542,14 +499,6 @@ class MyMongoDB:
 
 					i+=1
 			
-				print ('************')
-				print ('city: '+c+'\tcollection: '+a)
-				print (rentals_hour[c][a]['Monday'])
-				print (rentals_hour[c][a]['Tuesday'])
-
-				print ('=============')
-
-			
 			#PLOTTING
 			x = list(range(24))
 			x_lab = ['hour 0','hour 1','hour 2','hour 3','hour 4','hour 5','hour 6','hour 7','hour 8','hour 9','hour 10','hour 11','hour 12', 'hour 13','hour 14','hour 15','hour 16','hour 17','hour 18','hour 19','hour 20','hour 21','hour 22','hour 23']
@@ -589,7 +538,6 @@ class MyMongoDB:
 	
 		collections = ['parkings','bookings']
 		rentals_hour = {}
-
 		#DAYS OF THE YEAR
 		#1 OTTOBRE = 274
 		#31 OTTOBRE = 304
@@ -620,14 +568,14 @@ class MyMongoDB:
 							}
 						},
 
-							{ "$group": {
-		        						"_id":{'hour':{'$hour':'$init_date'},'day':{'$dayOfYear':'$init_date'},'plate':'$plate'},
-		        						"duration":{'$push':{'$divide':[{'$subtract':['$final_time','$init_time']},3600]}}	
-		        						}
-		        				}
-		            						
-							]
-							)
+					{
+						 "$group": {
+		        				"_id":{'hour':{'$hour':'$init_date'},'day':{'$dayOfYear':'$init_date'},'plate':'$plate'},
+		        				"duration":{'$push':{'$divide':[{'$subtract':['$final_time','$init_time']},3600]}}	
+		        		}
+		        	}
+		            ])
+
 				elif a == 'bookings':
 					tmp_selection = self.per_bk.aggregate([
 					{
