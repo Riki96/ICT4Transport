@@ -199,10 +199,9 @@ class MyMongoDB:
 			plt.legend()
 		plt.show()
 
-	def system_utilization(self,start, end, cities):
+	def system_utilization(self,start, end,startNY,endNY cities):
 		#numero2
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
+	
 		collections = ['parkings','bookings']
 		rentals_hour = {}
 
@@ -211,6 +210,14 @@ class MyMongoDB:
 		#31 OTTOBRE = 304
 
 		for c in cities:
+			if c == 'New York City':
+				unix_start = time.mktime(startNY.timetuple())
+				unix_end = time.mktime(endNY.timetuple())
+			else:
+				unix_start = time.mktime(start.timetuple())
+				unix_end = time.mktime(end.timetuple())
+
+
 			rentals_hour[c]={}
 
 			for a in collections:
