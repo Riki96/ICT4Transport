@@ -403,6 +403,180 @@ class MyMongoDB:
 
 			# print(list(duration_parking))
 			# exit()
+	def system_utilization(self,start, end,startNY,endNY cities):
+		#numero2
+	
+		collections = ['parkings','bookings']
+		rentals_hour = {}
+
+		#DAYS OF THE YEAR
+		#1 OTTOBRE = 274
+		#31 OTTOBRE = 304
+
+		for c in cities:
+			if c == 'New York City':
+				unix_start = time.mktime(startNY.timetuple())
+				unix_end = time.mktime(endNY.timetuple())
+			else:
+				unix_start = time.mktime(start.timetuple())
+				unix_end = time.mktime(end.timetuple())
+
+
+			rentals_hour[c]={}
+
+			for a in collections:
+				#creating dict for each city
+				
+				print ('===========')
+				print (c) 
+				if a == 'parkings':
+
+					tmp_selection = self.per_pk.aggregate([
+					{
+						'$match':{
+							'city':c,
+							'init_time':{'$gte':unix_start,'$lte':unix_end}
+							}
+						},
+
+							{ "$group": {
+		        						"_id":{'hour':{'$hour':'$init_date'},'day':{'$dayOfYear':'$init_date'},'plate':'$plate'},
+		        						"duration":{'$push':{'$divide':[{'$subtract':['$final_time','$init_time']},3600]}}	
+		        						}
+		        				}
+		            						
+							]
+							)
+				elif a == 'bookings':
+					tmp_selection = self.per_bk.aggregate([
+					{
+						'$match':{
+							'city':c,
+							'init_time':{'$gte':unix_start,'$lte':unix_end}
+							}
+						},
+
+							{ "$group": {
+		        						"_id":{'hour':{'$hour':'$init_date'},'day':{'$dayOfYear':'$init_date'},'plate':'$plate'},
+		        						"duration":{'$push':{'$divide':[{'$subtract':['$final_time','$init_time']},3600]}}	
+		        						}
+		        				}
+		            						
+							]
+							)
+
+				hour = []
+				dayOfYear =[]
+				duration =[]
+				plate =[]
+
+				for i in tmp_selection:
+					hour.append(i['_id']['hour'])
+					dayOfYear.append(i['_id']['day'])
+					plate.append(i['_id']['plate'])
+					duration.append(list(map(int,i['duration'])))
+
+
+				dataframe = pd.DataFrame({
+				 						'hour': hour,
+				 						'day':dayOfYear,
+				 						'plate':plate,						
+				 						'duration':duration})
+			
+				
+				dataframe = dataframe.sort_values(by=['plate', 'day', 'hour'])
+
+
+				oct_matrix = np.zeros((30,24)) 
+			
+				for index, row in dataframe.iterrows():
+					summ = sum(row['duration'])	
+					dataframe.at[index,'duration'] = summ
+					
+				
+
+					oct_matrix[dataframe.loc[index,'day']-274][dataframe.loc[index,'hour']] += 1
+
+					if dataframe.loc[index,'duration'] > 1:
+						is_inside = 0
+
+						for i in range (dataframe.loc[index,'duration']-1):#-1 perche prima ora già considerata
+							#considering also the duration
+							try:
+								oct_matrix[dataframe.loc[index,'day']-274][dataframe.loc[index,'hour']+(i+1)] += 1
+							except IndexError:
+								is_inside = 1
+								cnt = dataframe.loc[index,'duration']-(i+1)
+								for j in range(cnt):
+									try:
+										oct_matrix[dataframe.loc[index,'day']-273][j] += 1
+										
+									except IndexError:
+										break
+								if is_inside:
+									break
+				
+				rentals_hour[c][a] = {}
+				dayOfWeek = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+				oct_matrix = np.delete(oct_matrix, (0), axis=0)
+				oct_matrix = np.delete(oct_matrix, (-1), axis=0)
+				oct_matrix = np.delete(oct_matrix, (-1), axis=0)
+
+				i = 0
+				for Day in dayOfWeek:
+					#rentals_hour[c][a][Day]= np.zeros(shape=(1,24))
+					rentals_hour[c][a][Day]= np.zeros(24)
+
+			
+					for k in range(3):
+						rentals_hour[c][a][Day]+= oct_matrix[(i+(k*7)),:]
+
+					rentals_hour[c][a][Day]/=3
+
+					i+=1
+				
+
+
+
+				print ('************')
+				print ('city: '+c+'\tcollection: '+a)
+				print (rentals_hour[c][a]['Monday'])
+				print ('=============')
+
+			
+			#PLOTTING
+			x = list(range(24))
+			x_lab = ['hour 0','hour 1','hour 2','hour 3','hour 4','hour 5','hour 6','hour 7','hour 8','hour 9','hour 10','hour 11','hour 12', 'hour 13','hour 14','hour 15','hour 16','hour 17','hour 18','hour 19','hour 20','hour 21','hour 22','hour 23']
+
+			#plotting parkings
+			plt.figure(figsize = [10.5,6.5] )
+			plt.title('Average of parkings per hour of the day: '+c)
+			plt.grid()
+			for day in dayOfWeek:
+
+				plt.plot(rentals_hour[c]['parkings'][day],label = day)
+	
+			plt.xticks(x, x_lab,rotation = 60)
+			plt.legend()
+			plt.savefig(c+'_Parkings_vs_hour.png')
+			plt.close()
+
+			plt.figure(figsize = [10.5,6.5] )
+			plt.title('Average of bookings per hour of the day: '+c)
+			plt.grid()
+			for day in dayOfWeek:
+
+				plt.plot(rentals_hour[c]['bookings'][day],label = day)
+
+			plt.xticks(x, x_lab,rotation = 60)
+			plt.legend()
+			plt.savefig(c+'_Bookings_vs_hour.png')
+			plt.close()
+
+
+
+
+
 
 	def statistics(self, start_date, end_date, start_ny, end_ny, cities, days=[d for d in range(1,31+1)]):
 		"""
