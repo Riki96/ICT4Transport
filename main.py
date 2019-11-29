@@ -7,7 +7,7 @@ cities = ['Torino','New York City','Amsterdam']
 DB = MyMongoDB()
 # print(DB.db.list_collection_names())
 # DB.list_documents()
-# DB.list_cities()
+DB.list_cities()
 # DB.sort_collection()
 
 start = datetime.datetime(2017,10,1)
