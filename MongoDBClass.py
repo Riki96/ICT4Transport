@@ -903,10 +903,13 @@ class MyMongoDB:
 		unix_end = time.mktime(end.timetuple())
 		z = np.linspace(0,0.1,15)
 		table = {}
+		matrix = []
 
 		for i in z:
-			print(i)
+			#print(i)
 			for j in z:
+				matrix.append([(long_min+i), (lat_min+j)])
+
 				parked_at = self.per_pk.aggregate([
 					{
 						'$geoNear':{
@@ -956,8 +959,11 @@ class MyMongoDB:
 		pprint(table)
 		for x,y in table.items():
 			k.append((x.split(' - ')[0], x.split(' - ')[1], x.split(' - ')[2], y))
-		t = pd.DataFrame(k, columns=['Latitude', 'Longitude', 'Hour', 'Value'])
+		t = pd.DataFrame(k, columns=['Latitude', 'Longitude','Hour', 'Value'])
 		t.to_excel('near_at.xlsx')
+		dataframe = pd.DataFrame(matrix)
+		dataframe.to_csv('GEO_centroids.csv')
+
 
 	def OD_matrix(self, start, end, lat_min=45.01089, long_min=7.60679):
 		"""
