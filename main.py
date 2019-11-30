@@ -7,6 +7,10 @@ cities = ['Torino','New York City','Amsterdam']
 DB = MyMongoDB()
 # print(DB.db.list_collection_names())
 # DB.list_documents()
+<<<<<<< HEAD
+=======
+DB.list_cities()
+>>>>>>> riccardo_branch
 # DB.list_cities()
 # DB.sort_collection()
 
@@ -22,8 +26,14 @@ end_ny = datetime.datetime(2017,10,31,23,59,59, tzinfo=timezone('US/Eastern'))
 # DB.CDF(start,end,start_ny,end_ny,cities)
 # DB.CDF_weekly(start, end, start_ny,end_ny, cities)
 #DB.system_utilization(start, end,start_ny,end_ny ,cities)
+<<<<<<< HEAD
 # DB.system_utilization_filtered(start, end,start_ny,end_ny ,cities)
 DB.density_grid(start, end)
 # DB.OD_matrix(start, end)
+=======
+#DB.system_utilization_filtered(start, end,start_ny,end_ny ,cities)
+DB.density_grid(start, end)
+#DB.OD_matrix(start, end)
+>>>>>>> riccardo_branch
 # DB.filtering(start, end)
 
