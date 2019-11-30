@@ -659,26 +659,28 @@ class MyMongoDB:
 			#PLOTTING PARKINGS
 			plt.figure(figsize=[10.5,6.5])
 			plt.title('Average of parkings per hour of the day: '+c)
-			plt.grid()
-			plt.plot(week,label='working days')
+			# plt.grid()
+			plt.plot(week,label='Working Days')
 			plt.plot(rentals_hour[c]['parkings']['Friday'],label='Friday')
 			plt.plot(rentals_hour[c]['parkings']['Saturday'],label= 'Saturday')
 			plt.plot(rentals_hour[c]['parkings']['Sunday'],label= 'Sunday')
 			plt.xticks(x, x_lab,rotation = 60)
 			plt.legend()
+			plt.gcf().autofmt_xdate()
 			plt.savefig('Plots/'+c+'Filtered_Parkings_vs_hour.png')
 			plt.close()
 
 			#PLOTTING BOOKINGS
-			plt.figure(figsize = [10.5,6.5] )
+			plt.figure(figsize=[10.5,6.5])
 			plt.title('Average of bookings per hour of the day: '+c)
-			plt.grid()
-			plt.plot(week,label='working days')
+			# plt.grid()
+			plt.plot(week,label='Working Days')
 			plt.plot(rentals_hour[c]['bookings']['Friday'],label='Friday')
 			plt.plot(rentals_hour[c]['bookings']['Saturday'],label= 'Saturday')
 			plt.plot(rentals_hour[c]['bookings']['Sunday'],label= 'Sunday')
 			plt.xticks(x, x_lab,rotation = 60)
 			plt.legend()
+			plt.gcf().autofmt_xdate()
 			plt.savefig('Plots/'+c+'Filtered_Bookings_vs_hour.png')
 			plt.close()
 
@@ -712,20 +714,22 @@ class MyMongoDB:
 					}
 				},
 				{
-					'$project':{
-						'init_date':1,
-						'duration':{
-							'$subtract':['$final_time','$init_time']
-						},
-						'day':{'$dayOfMonth':'$init_date'}
+				'$project':{
+					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
+					'dist_lat':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 0]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 0]}]}},
+					'dist_long':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 1]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 1]}]}},
+					'origin': {'$arrayElemAt': ['$origin_destination.coordinates', 0]},
+					'dest': {'$arrayElemAt': ['$origin_destination.coordinates', 1]},
+					'day':{'$dayOfMonth':'$init_date'}
 					}
 				},
 				{
-					'$match':{
-						'duration':{
-							'$lte':180*60,
-							'$gte':3*60
-						}
+				'$match':{
+					'$or':[
+						{'dist_long':{'$gte':0.0003}},
+						{'dist_lat':{'$gte':0.0003}},
+						],
+					'duration':{'$lte':180,'$gte':2},
 					}
 				},
 				{
@@ -759,7 +763,7 @@ class MyMongoDB:
 			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
 			# plt.set_title('Median')
 			plt.plot([x[3] for x in stats],'-.', marker='o', label='75th Percentile')
-			plt.title('City of {}'.format(c))
+			plt.title('Bookings Statistics - City of {}'.format(c))
 			
 			plt.legend()
 			plt.gcf().autofmt_xdate()
@@ -827,7 +831,7 @@ class MyMongoDB:
 			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
 			# plt.set_title('Median')
 			plt.plot([x[3] for x in stats],'-.', label='75th Percentile')
-			plt.title('City of {}'.format(c))
+			plt.title('Parkings Statistics - City of {}'.format(c))
 			
 			plt.legend()
 			plt.ylabel('Duration (s)')
@@ -893,7 +897,7 @@ class MyMongoDB:
 		
 		table = pd.DataFrame(table, columns=['Hour','Latitude','Longitude'])
 		table.to_csv('coordinates.csv')
-			
+		
 	def density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
 		"""
 			Develop a new grid system for Torino with each area colored for how many parkings are present
@@ -907,6 +911,8 @@ class MyMongoDB:
 		for i in z:
 			print(i)
 			for j in z:
+				print('AAAAAAAAA')
+				print(j)
 				parked_at = self.per_pk.aggregate([
 					{
 						'$geoNear':{
@@ -923,37 +929,42 @@ class MyMongoDB:
 					{
 						'$match':
 						{
-							'city':'Torino',
+							# 'city':'Torino',
 							'init_time':{
 								'$gte':unix_start,
 								'$lte':unix_end
 							}
 						}
 					},
-					{
-						'$group':{
-							# '_id':'$plate',
-							# 'coordinates':{'$push':'$loc.coordinates'}
-							'_id':{'loc':'$loc.coordinates', 'h':{'$hour':'$init_date'}}
-						}
-					}
+					# {
+					# 	'$group':{
+					# 		# '_id':'$plate',
+					# 		# 'coordinates':{'$push':'$loc.coordinates'}
+					# 		# '_id':{'loc':'$loc.coordinates'},
+					# 		'_id':{'$hour':'$init_date'},
+					# 		'count':{'$sum':1}
+					# 		# 'plates':{'$push':'$plate'}
+					# 	}
+					# }
 				])
-				key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
+				# key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
 				# n = (len(list(parked_at)))
 				# table[key] = n
 				for p in parked_at:
-					# print(p)
-					h = p['_id']['h']
-					k = key + ' - ' + str(h)
-					if k in list(table.keys()):
-						# print(table[k])
-						table[k] = table[k] + len(p)
-					else:
-						table[k] = len(p)
+					# pprint(len(list(parked_at)))
+					pprint(p)
+					# h = p['h']
+					# k = key + ' - ' + str(h)
+					# k = p['_id']
+					# if k in list(table.keys()):
+					# 	# print(table[k])
+					# 	table[k] = table[k] + len(p['plates'])
+					# else:
+					# 	table[k] = len(p['plates'])
 					# print(table)
 					# exit()
 		k = []
-		pprint(table)
+		# pprint(table)
 		for x,y in table.items():
 			k.append((x.split(' - ')[0], x.split(' - ')[1], x.split(' - ')[2], y))
 		t = pd.DataFrame(k, columns=['Latitude', 'Longitude', 'Hour', 'Value'])
