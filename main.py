@@ -7,6 +7,10 @@ cities = ['Torino','New York City','Amsterdam']
 DB = MyMongoDB()
 # print(DB.db.list_collection_names())
 # DB.list_documents()
+<<<<<<< HEAD
+=======
+DB.list_cities()
+>>>>>>> riccardo_branch
 # DB.list_cities()
 # DB.sort_collection()
 

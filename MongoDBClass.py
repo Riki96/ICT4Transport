@@ -657,11 +657,11 @@ class MyMongoDB:
 			# plt.close()
 
 			#PLOTTING BOOKINGS
-			plt.figure(figsize = [10.5,6.5] )
+			plt.figure(figsize=[10.5,6.5])
 			plt.title('Average of bookings per hour of the day: '+c)
-			plt.grid()
-			plt.plot(week,label='working days')
-			plt.plot(rentals_hour[c]['bookings']['Friday'],label='Friday', linestyle='-.', marker='o')
+			# plt.grid()
+			plt.plot(week,label='Working Days')
+			plt.plot(rentals_hour[c]['bookings']['Friday'],label='Friday')
 			plt.plot(rentals_hour[c]['bookings']['Saturday'],label= 'Saturday')
 			plt.plot(rentals_hour[c]['bookings']['Sunday'],label= 'Sunday', linestyle='--', marker='*')
 			plt.xticks(x, x_lab,rotation = 60)
@@ -701,20 +701,22 @@ class MyMongoDB:
 					}
 				},
 				{
-					'$project':{
-						'init_date':1,
-						'duration':{
-							'$subtract':['$final_time','$init_time']
-						},
-						'day':{'$dayOfMonth':'$init_date'}
+				'$project':{
+					'duration': { '$divide': [ { '$subtract': ["$final_time", "$init_time"] }, 60 ] },
+					'dist_lat':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 0]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 0]}]}},
+					'dist_long':{'$abs':{'$subtract': [{'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 0]}, 1]}, {'$arrayElemAt':[{'$arrayElemAt': [ "$origin_destination.coordinates", 1]}, 1]}]}},
+					'origin': {'$arrayElemAt': ['$origin_destination.coordinates', 0]},
+					'dest': {'$arrayElemAt': ['$origin_destination.coordinates', 1]},
+					'day':{'$dayOfMonth':'$init_date'}
 					}
 				},
 				{
-					'$match':{
-						'duration':{
-							'$lte':180*60,
-							'$gte':3*60
-						}
+				'$match':{
+					'$or':[
+						{'dist_long':{'$gte':0.0003}},
+						{'dist_lat':{'$gte':0.0003}},
+						],
+					'duration':{'$lte':180,'$gte':2},
 					}
 				},
 				{
@@ -750,7 +752,7 @@ class MyMongoDB:
 			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
 			# plt.set_title('Median')
 			plt.plot([x[3] for x in stats],'-.', marker='o', label='75th Percentile')
-			plt.title('City of {}'.format(c))
+			plt.title('Bookings Statistics - City of {}'.format(c))
 			
 			plt.legend()
 			plt.gcf().autofmt_xdate()
@@ -820,7 +822,7 @@ class MyMongoDB:
 			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
 			# plt.set_title('Median')
 			plt.plot([x[3] for x in stats],'-.', label='75th Percentile')
-			plt.title('City of {}'.format(c))
+			plt.title('Parkings Statistics - City of {}'.format(c))
 			
 			plt.legend()
 			plt.ylabel('Duration (s)')
@@ -960,7 +962,7 @@ class MyMongoDB:
 					{
 						'$match':
 						{
-							'city':'Torino',
+							# 'city':'Torino',
 							'init_time':{
 								'$gte':unix_start,
 								'$lte':unix_end
