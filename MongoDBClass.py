@@ -61,14 +61,12 @@ class MyMongoDB:
 		"""
 			Sort the collection to see when it started/ended
 		"""
-		init_sort = self.per_pk.find({'init_time':{'$lt':1481650748}}).sort(
-			'init_time',1).limit(1)
+		init_sort = self.per_pk.sort('init_time',1).limit(1)
 		
 		for i in init_sort:
 			print(i['city'], i['init_date'])
 
-		sort_init = self.per_pk.find({'init_time':{'$gt':1500000000}}).sort(
-			'init_time',-1).limit(1)
+		sort_init = self.per_pk.sort('init_time',-1).limit(1)
 		for i in sort_init:
 			print(i['city'], i['final_date'])
 
@@ -127,24 +125,6 @@ class MyMongoDB:
 			for a in avb_cars_pk:
 				cars += a['plate']
 
-			cars_enj = 0
-			if c == 'Torino':
-				avb_cars_bk_enj = self.per_bk_enj.aggregate([
-				{
-					'$match':{
-						'city':c
-					}
-				},
-				{
-					'$group':{
-						'_id':'$plate'
-					}
-				},
-				{
-					'$count':'plate'
-				}
-				])
-
 			# print('%d cars in %s'%(avb_cars, c))
 			bk_in_date = self.per_bk.count({
 				'city':c,
@@ -175,9 +155,6 @@ class MyMongoDB:
 		"""
 			Calculate the CDF for the cities over the duration of parkings and bookings.
 		"""
-
-		unix_start = time.mktime(start.timetuple())
-		unix_end = time.mktime(end.timetuple())
 
 		sb.set_style('darkgrid')
 		fig, axs = plt.subplots(2)
@@ -260,7 +237,7 @@ class MyMongoDB:
 		# axs[0].set_title('CDF Booking Duration')
 		plt.legend()
 		plt.gcf().autofmt_xdate()
-		fig.savefig('Plots/CDF', dpi=600)
+		fig.savefig('Plots/CDF')
 
 	def CDF_weekly(self, start_date, end_date, start_ny, end_ny, cities):
 		"""	
@@ -323,7 +300,7 @@ class MyMongoDB:
 			# plt.grid()
 			plt.xscale('log')
 			plt.title('CDF of Parking Duration for {}'.format(c))
-			plt.savefig('Plots/Weekly_CDF_of_Parking_Duration_for_{}'.format(c), dpi=600)
+			plt.savefig('Plots/Weekly_CDF_of_Parking_Duration_for_{}'.format(c))
 
 			duration_booking = (self.per_bk.aggregate([
 				{
@@ -368,7 +345,7 @@ class MyMongoDB:
 			# plt.grid()
 			plt.xscale('log')
 			plt.title('CDF of Booking Duration for {}'.format(c))
-			plt.savefig('Plots/Weekly_CDF_of_Booking_Duration_for_{}'.format(c), dpi=600)
+			plt.savefig('Plots/Weekly_CDF_of_Booking_Duration_for_{}'.format(c))
 
 	def system_utilization(self,start, end,startNY,endNY, cities):
 		#numero2 NOT filtered
@@ -383,11 +360,11 @@ class MyMongoDB:
 			else:
 				unix_start = time.mktime(start.timetuple())
 				unix_end = time.mktime(end.timetuple())
+
 			rentals_hour[c]={}
 			for a in collections:
-				print (c) 
+				print(c) 
 				if a == 'parkings':
-
 					tmp_selection = self.per_pk.aggregate([
 					{
 						'$match':{
@@ -403,7 +380,7 @@ class MyMongoDB:
 		        				}
 		        			}			
 					])
-				elif a == 'bookings':
+				else:
 					tmp_selection = self.per_bk.aggregate([
 					{
 						'$match':{
@@ -418,10 +395,11 @@ class MyMongoDB:
         						}
         				},			
 					])
+
 				hour = []
-				dayOfYear =[]
-				duration =[]
-				plate =[]
+				dayOfYear = []
+				duration = []
+				plate = []
 
 				for i in tmp_selection:
 					hour.append(i['_id']['hour'])
@@ -470,12 +448,12 @@ class MyMongoDB:
 				oct_matrix = np.delete(oct_matrix, (-1), axis=0)
 
 				i = 0
-				for Day in dayOfWeek:
+				for day in dayOfWeek:
 					#rentals_hour[c][a][Day]= np.zeros(shape=(1,24))
-					rentals_hour[c][a][Day]= np.zeros(24)
+					rentals_hour[c][a][day]= np.zeros(24)
 					for k in range(3):
-						rentals_hour[c][a][Day]+= oct_matrix[(i+(k*7)),:]
-					rentals_hour[c][a][Day]/=3
+						rentals_hour[c][a][day]+= oct_matrix[(i+(k*7)),:]
+					rentals_hour[c][a][day]/=3
 
 					i+=1
 			
@@ -484,31 +462,40 @@ class MyMongoDB:
 			x_lab = ['Hour %d'%i for i in range(24)]
 			week = np.zeros(24)
 			for i in range (4):
-				week += rentals_hour[c][a][dayOfWeek[i]]
+				week += rentals_hour[c]['parkings'][dayOfWeek[i]]
 			week/= 4
 			#PLOTTING PARKINGS
 			plt.figure(figsize = [10.5,6.5] )
 			plt.title('Average of parkings per hour of the day: '+c)
-			plt.grid()
-			plt.plot(week,label='working days')
-			plt.plot(rentals_hour[c]['parkings']['Friday'],label='Friday')
+			# plt.grid()
+			plt.plot(week,label='Working Days')
+			plt.plot(rentals_hour[c]['parkings']['Friday'],label='Friday', linestyle='-.', marker='o')
 			plt.plot(rentals_hour[c]['parkings']['Saturday'],label= 'Saturday')
-			plt.plot(rentals_hour[c]['parkings']['Sunday'],label= 'Sunday')
+			plt.plot(rentals_hour[c]['parkings']['Sunday'],label= 'Sunday', linestyle='--', marker='*')
 			plt.xticks(x, x_lab,rotation = 60)
+			plt.ylabel('Number of Parkings')
 			plt.legend()
+			plt.gcf().autofmt_xdate()
 			plt.savefig('Plots/'+c+'Parkings_vs_hour.png')
 			plt.close()
+
+			week = np.zeros(24)
+			for i in range (4):
+				week += rentals_hour[c]['bookings'][dayOfWeek[i]]
+			week/= 4
 
 			#PLOTTING BOOKINGS
 			plt.figure(figsize = [10.5,6.5] )
 			plt.title('Average of bookings per hour of the day: '+c)
-			plt.grid()
-			plt.plot(week,label='working days')
-			plt.plot(rentals_hour[c]['bookings']['Friday'],label='Friday')
+			# plt.grid()
+			plt.plot(week,label='Working Days')
+			plt.plot(rentals_hour[c]['bookings']['Friday'],label='Friday', linestyle='-.', marker='o')
 			plt.plot(rentals_hour[c]['bookings']['Saturday'],label= 'Saturday')
-			plt.plot(rentals_hour[c]['bookings']['Sunday'],label= 'Sunday')
+			plt.plot(rentals_hour[c]['bookings']['Sunday'],label= 'Sunday', linestyle='--', marker='*')
+			plt.ylabel('Number of Bookings')
 			plt.xticks(x, x_lab,rotation = 60)
 			plt.legend()
+			plt.gcf().autofmt_xdate()
 			plt.savefig('Plots/'+c+'Bookings_vs_hour.png')
 			plt.close()
 
@@ -654,31 +641,33 @@ class MyMongoDB:
 
 			week = np.zeros(24)
 			for i in range (4):
-				week += rentals_hour[c][a][dayOfWeek[i]]
+				week += rentals_hour[c]['bookings'][dayOfWeek[i]]
 			week /= 4
 			#PLOTTING PARKINGS
-			plt.figure(figsize=[10.5,6.5])
-			plt.title('Average of parkings per hour of the day: '+c)
-			plt.grid()
-			plt.plot(week,label='working days')
-			plt.plot(rentals_hour[c]['parkings']['Friday'],label='Friday')
-			plt.plot(rentals_hour[c]['parkings']['Saturday'],label= 'Saturday')
-			plt.plot(rentals_hour[c]['parkings']['Sunday'],label= 'Sunday')
-			plt.xticks(x, x_lab,rotation = 60)
-			plt.legend()
-			plt.savefig('Plots/'+c+'Filtered_Parkings_vs_hour.png')
-			plt.close()
+			# plt.figure(figsize=[10.5,6.5])
+			# plt.title('Average of parkings per hour of the day: '+c)
+			# plt.grid()
+			# plt.plot(week,label='working days')
+			# plt.plot(rentals_hour[c]['parkings']['Friday'],label='Friday')
+			# plt.plot(rentals_hour[c]['parkings']['Saturday'],label= 'Saturday')
+			# plt.plot(rentals_hour[c]['parkings']['Sunday'],label= 'Sunday')
+			# plt.xticks(x, x_lab,rotation = 60)
+			# plt.legend()
+			# plt.savefig('Plots/'+c+'Filtered_Parkings_vs_hour.png')
+			# plt.close()
 
 			#PLOTTING BOOKINGS
 			plt.figure(figsize = [10.5,6.5] )
 			plt.title('Average of bookings per hour of the day: '+c)
 			plt.grid()
 			plt.plot(week,label='working days')
-			plt.plot(rentals_hour[c]['bookings']['Friday'],label='Friday')
+			plt.plot(rentals_hour[c]['bookings']['Friday'],label='Friday', linestyle='-.', marker='o')
 			plt.plot(rentals_hour[c]['bookings']['Saturday'],label= 'Saturday')
-			plt.plot(rentals_hour[c]['bookings']['Sunday'],label= 'Sunday')
+			plt.plot(rentals_hour[c]['bookings']['Sunday'],label= 'Sunday', linestyle='--', marker='*')
 			plt.xticks(x, x_lab,rotation = 60)
 			plt.legend()
+			plt.ylabel('Number of Bookings')
+			plt.gcf().autofmt_xdate()
 			plt.savefig('Plots/'+c+'Filtered_Bookings_vs_hour.png')
 			plt.close()
 
@@ -751,9 +740,11 @@ class MyMongoDB:
 				perc_75 = np.percentile(np.array(i['arr']),75)
 				stats.append((i['avg'],i['std'],med,perc_75))
 
-			plt.figure(figsize=(15,6))	
+			plt.figure(figsize=(15,6))
+			sb.set_context(rc={"lines.linewidth": 2})
 			plt.plot([x[0] for x in stats], label='Average', linewidth=2)
 			# plt.set_title('Average')
+			sb.set_context(rc={"lines.linewidth": 1})
 			plt.plot([x[1] for x in stats], label='Standard Deviation')
 			# plt.set_title('StandardDeviation')
 			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
@@ -820,8 +811,10 @@ class MyMongoDB:
 				stats.append((i['avg'],i['std'],med,perc_75))
 
 			plt.figure(figsize=(15,6))
+			sb.set_context(rc={"lines.linewidth": 2})
 			plt.plot([x[0] for x in stats], label='Average')
 			# plt.set_title('Average')
+			sb.set_context(rc={"lines.linewidth": 1})
 			plt.plot([x[1] for x in stats], label='Standard Deviation')
 			# plt.set_title('StandardDeviation')
 			plt.plot([x[2] for x in stats], linestyle='--', marker='*', label='Median')
@@ -894,32 +887,76 @@ class MyMongoDB:
 		table = pd.DataFrame(table, columns=['Hour','Latitude','Longitude'])
 		table.to_csv('coordinates.csv')
 			
-	def density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
-		"""
-			Develop a new grid system for Torino with each area colored for how many parkings are present
-		"""
+	# def density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
+	# 	"""
+	# 		Develop a new grid system for Torino with each area colored for how many parkings are present
+	# 	"""
 
+	# 	unix_start = time.mktime(start.timetuple())
+	# 	unix_end = time.mktime(end.timetuple())
+	# 	z = np.linspace(0,0.15,16)
+	# 	table = {}
+
+	# 	for i in z:
+	# 		print(i)
+	# 		for j in z:
+	# 			parked_at = self.per_pk.aggregate([
+	# 				{
+	# 					'$geoNear':{
+	# 						'near':{
+	# 							'type':'Point',
+	# 							'coordinates':[(long_min+i), (lat_min+j)]
+	# 						},
+	# 						'spherical':True,
+	# 						'key':'loc',
+	# 						'distanceField':'dist.calculated',
+	# 						'maxDistance':550
+	# 					}
+	# 				},
+	# 				{
+	# 					'$match':
+	# 					{
+	# 						'city':'Torino',
+	# 						'init_time':{
+	# 							'$gte':unix_start,
+	# 							'$lte':unix_end
+	# 						}
+	# 					}
+	# 				},
+	# 				{
+	# 					'$group':{
+	# 						# '_id':'$plate',
+	# 						# 'coordinates':{'$push':'$loc.coordinates'}
+	# 						'_id':{'loc':'$loc.coordinates', 'h':{'$hour':'$init_date'}}
+	# 					}
+	# 				}
+	# 			])
+	# 			key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
+	# 			# n = (len(list(parked_at)))
+	# 			# table[key] = n
+	# 			for p in parked_at:
+	# 				# print(p)
+	# 				h = p['_id']['h']
+	# 				k = key + ' - ' + str(h)
+	# 				if k in list(table.keys()):
+	# 					# print(table[k])
+	# 					table[k] = table[k] + len(p)
+	# 				else:
+	# 					table[k] = len(p)
+	# 				# print(table)
+	# 				# exit()
+	# 	k = []
+	# 	pprint(table)
+	# 	for x,y in table.items():
+	# 		k.append((x.split(' - ')[0], x.split(' - ')[1], x.split(' - ')[2], y))
+	# 	t = pd.DataFrame(k, columns=['Latitude', 'Longitude', 'Hour', 'Value'])
+	# 	t.to_excel('near_at.xlsx')
+
+	def better_density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
-		z = np.linspace(0,0.1,15)
-		table = {}
 
-		for i in z:
-			print(i)
-			for j in z:
-				parked_at = self.per_pk.aggregate([
-					{
-						'$geoNear':{
-							'near':{
-								'type':'Point',
-								'coordinates':[(long_min+i), (lat_min+j)]
-							},
-							'spherical':True,
-							'key':'loc',
-							'distanceField':'dist.calculated',
-							'maxDistance':550
-						}
-					},
+		pipeline = [
 					{
 						'$match':
 						{
@@ -932,32 +969,47 @@ class MyMongoDB:
 					},
 					{
 						'$group':{
-							# '_id':'$plate',
-							# 'coordinates':{'$push':'$loc.coordinates'}
-							'_id':{'loc':'$loc.coordinates', 'h':{'$hour':'$init_date'}}
+							'_id':{'$hour':'$init_date'},
+							'locs':{'$push':'$loc.coordinates'}
 						}
+					},
+					{
+						'$sort':{'_id':1}
 					}
-				])
-				key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
-				# n = (len(list(parked_at)))
-				# table[key] = n
-				for p in parked_at:
-					# print(p)
-					h = p['_id']['h']
-					k = key + ' - ' + str(h)
-					if k in list(table.keys()):
-						# print(table[k])
-						table[k] = table[k] + len(p)
-					else:
-						table[k] = len(p)
-					# print(table)
-					# exit()
-		k = []
-		pprint(table)
-		for x,y in table.items():
-			k.append((x.split(' - ')[0], x.split(' - ')[1], x.split(' - ')[2], y))
-		t = pd.DataFrame(k, columns=['Latitude', 'Longitude', 'Hour', 'Value'])
-		t.to_excel('near_at.xlsx')
+					]
+
+		res = self.per_pk.aggregate(pipeline)
+		res = list(res)
+		hours = [i for i in range(24)]
+		output = {k:{} for k in hours}
+		cols = []
+
+		print(output)
+		for i in res:
+			pprint(i['_id'])
+			for loc in i['locs']:
+				lat, lng = loc[1],loc[0]
+				area, lng, lat = self.closest_to_density(lat, lng)
+				key = str(lat) + ' - ' + str(lng)
+
+				if key in list(output[i['_id']].keys()):
+					output[i['_id']][key] += 1
+				else:
+					cols.append(key)
+					output[i['_id']][key] = 1 
+				
+		# pprint(output)
+		lats = [i.split(' - ')[0] for i in cols]
+		lngs = [i.split(' - ')[1] for i in cols]
+		df_locs = pd.DataFrame(list(zip(lats,lngs)), columns=['Latitude', 'Longitude']) #Grid Points 
+		# df_lngs = pd.DataFrame(lngs)
+		# df_lats.to_csv('Latitudes.csv')
+		df_locs.to_csv('Locs.csv') 
+		df = pd.DataFrame.from_dict(output, orient='index', columns=cols) 	#On x-axis the centroids in long-lat
+																			#On y-axis the day hour
+		df.to_csv('Density.csv')
+
+
 
 	def OD_matrix(self, start, end, lat_min=45.01089, long_min=7.60679):
 		"""
@@ -1008,32 +1060,53 @@ class MyMongoDB:
 			# 	'$limit':10
 			# }
 		])
-		OD = np.zeros((15*15,15*15), dtype='int32')
+		OD = np.zeros((20*20,20*20), dtype='int32')
+		# left_from = np.zeros((20*20,1), dtype='int32')
+		# arrived_to = np.zeros((1, 20*20), dtype='int32')
 		for o in od:
-			O, D = closest_to(o['origin'], o['dest'])
+			O, D = self.closest_to(o['origin'], o['dest'])
 			# print(O,D)
 			OD[O, D] += 1
 
-		# OD = pd.DataFrame(OD)
-		# OD.to_csv('OriginDestination_Matrix.csv')
+		# left_from = np.sum(OD, axis=1)
+		# arrived_to = np.sum(OD, axis=0)
+		# Left_from = pd.DataFrame(left_from)
+		# Arrived_to = pd.DataFrame(arrived_to)
+
+		# Left_from.to_csv('Cars Left From.csv')
+		# Arrived_to.to_csv('Cars Arrived To.csv') 
+		OD = pd.DataFrame(OD)
+		OD.to_csv('OriginDestination_Matrix.csv')
 		# print(OD)
 		# exit()
-		OriginDestination = pd.DataFrame(OD)
-		OriginDestination.to_excel('OriginDestination_Matrix.xlsx')
+		# OriginDestination = pd.DataFrame(OD)
+		# OriginDestination.to_excel('OriginDestination_Matrix.xlsx')
 
-def closest_to(O, D, lat_min=45.01089, long_min=7.60679):
-	z = np.linspace(0,0.1,15)
-	lo = np.array([x + long_min for x in z])
-	la = np.array([x + lat_min for x in z])
-	# print(lo)
-	# print(la)
-	O_Long = np.abs(lo - O[0]).argmin()
-	O_Lat = np.abs(la - O[1]).argmin()
-	Area_O = 15*O_Long + O_Lat
+	def closest_to(self, O, D, lat_min=45.01089, long_min=7.60679, n=20):
+		z = np.linspace(0,0.14,n)
+		lo = np.array([x + long_min for x in z])
+		la = np.array([x + lat_min for x in z])
+		# print(lo)
+		# print(la)
+		O_Long = np.abs(lo - O[0]).argmin()
+		O_Lat = np.abs(la - O[1]).argmin()
+		Area_O = n*O_Long + O_Lat
 
-	D_Long = np.abs(lo - D[0]).argmin()
-	D_Lat = np.abs(la - D[1]).argmin()
-	Area_D = 15*D_Long + D_Lat
+		D_Long = np.abs(lo - D[0]).argmin()
+		D_Lat = np.abs(la - D[1]).argmin()
+		Area_D = n*D_Long + D_Lat
 
-	return Area_O, Area_D
+		return Area_O, Area_D
+
+	def closest_to_density(self, lat, lng, lat_min=45.01089, long_min=7.60679, n=20):
+		z = np.linspace(0,0.14,n) #Degrees: 0.0073 ~500 meters
+		lo = np.array([x + long_min for x in z])
+		la = np.array([x + lat_min for x in z])
+
+		O_Long = np.abs(lo - lng).argmin()
+		O_Lat = np.abs(la - lat).argmin()
+		Area_O = n*O_Long + O_Lat
+
+		return Area_O, lo[O_Long], la[O_Lat]
+
 
