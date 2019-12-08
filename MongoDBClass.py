@@ -757,7 +757,7 @@ class MyMongoDB:
 			plt.legend()
 			plt.gcf().autofmt_xdate()
 			# plt.grid()
-			plt.xticks(np.arange(31), days, rotation=30)
+			plt.xticks(np.arange(32), days, rotation=30)
 			plt.ylabel('Duration (s)')
 			# plt.savefig('Plots/City of {} - Bookings Statistics.png'.format(c), dpi=300)
 			plt.savefig('Plots/City_of_{}_-_Bookings_Statistics.png'.format(c), dpi=600)
@@ -828,7 +828,7 @@ class MyMongoDB:
 			plt.ylabel('Duration (s)')
 			plt.gcf().autofmt_xdate()
 			# plt.grid()
-			plt.xticks(np.arange(31), days, rotation=30)
+			plt.xticks(np.arange(32), days, rotation=30)
 			# plt.savefig('Plots/City of {} - Parkings Statistics.png'.format(c), dpi=300)
 			plt.savefig('Plots/City_of_{}_-_Parkings_Statistics.png'.format(c), dpi=600)			
 
@@ -887,73 +887,8 @@ class MyMongoDB:
 				table.append([str(i['_id'])+':00',j[1],j[0]])
 		
 		table = pd.DataFrame(table, columns=['Hour','Latitude','Longitude'])
-		table.to_csv('coordinates.csv')
+		table.to_csv('File/coordinates.csv')
 			
-	# def density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
-	# 	"""
-	# 		Develop a new grid system for Torino with each area colored for how many parkings are present
-	# 	"""
-
-	# 	unix_start = time.mktime(start.timetuple())
-	# 	unix_end = time.mktime(end.timetuple())
-	# 	z = np.linspace(0,0.15,16)
-	# 	table = {}
-
-	# 	for i in z:
-	# 		print(i)
-	# 		for j in z:
-	# 			parked_at = self.per_pk.aggregate([
-	# 				{
-	# 					'$geoNear':{
-	# 						'near':{
-	# 							'type':'Point',
-	# 							'coordinates':[(long_min+i), (lat_min+j)]
-	# 						},
-	# 						'spherical':True,
-	# 						'key':'loc',
-	# 						'distanceField':'dist.calculated',
-	# 						'maxDistance':550
-	# 					}
-	# 				},
-	# 				{
-	# 					'$match':
-	# 					{
-	# 						'city':'Torino',
-	# 						'init_time':{
-	# 							'$gte':unix_start,
-	# 							'$lte':unix_end
-	# 						}
-	# 					}
-	# 				},
-	# 				{
-	# 					'$group':{
-	# 						# '_id':'$plate',
-	# 						# 'coordinates':{'$push':'$loc.coordinates'}
-	# 						'_id':{'loc':'$loc.coordinates', 'h':{'$hour':'$init_date'}}
-	# 					}
-	# 				}
-	# 			])
-	# 			key = str(np.round(lat_min+j, decimals=5)) + ' - ' + str(np.round(long_min + i,decimals=5))
-	# 			# n = (len(list(parked_at)))
-	# 			# table[key] = n
-	# 			for p in parked_at:
-	# 				# print(p)
-	# 				h = p['_id']['h']
-	# 				k = key + ' - ' + str(h)
-	# 				if k in list(table.keys()):
-	# 					# print(table[k])
-	# 					table[k] = table[k] + len(p)
-	# 				else:
-	# 					table[k] = len(p)
-	# 				# print(table)
-	# 				# exit()
-	# 	k = []
-	# 	pprint(table)
-	# 	for x,y in table.items():
-	# 		k.append((x.split(' - ')[0], x.split(' - ')[1], x.split(' - ')[2], y))
-	# 	t = pd.DataFrame(k, columns=['Latitude', 'Longitude', 'Hour', 'Value'])
-	# 	t.to_excel('near_at.xlsx')
-
 	def better_density_grid(self, start, end, lat_min=45.01089, long_min=7.60679):
 		unix_start = time.mktime(start.timetuple())
 		unix_end = time.mktime(end.timetuple())
@@ -962,7 +897,7 @@ class MyMongoDB:
 					{
 						'$match':
 						{
-							# 'city':'Torino',
+							'city':'Torino',
 							'init_time':{
 								'$gte':unix_start,
 								'$lte':unix_end
@@ -1006,10 +941,10 @@ class MyMongoDB:
 		df_locs = pd.DataFrame(list(zip(lats,lngs)), columns=['Latitude', 'Longitude']) #Grid Points 
 		# df_lngs = pd.DataFrame(lngs)
 		# df_lats.to_csv('Latitudes.csv')
-		df_locs.to_csv('Locs.csv') 
+		df_locs.to_csv('File/Locs.csv') 
 		df = pd.DataFrame.from_dict(output, orient='index', columns=cols) 	#On x-axis the centroids in long-lat
 																			#On y-axis the day hour
-		df.to_csv('Density.csv')
+		df.to_csv('File/Density.csv')
 
 
 
@@ -1078,11 +1013,11 @@ class MyMongoDB:
 		# Left_from.to_csv('Cars Left From.csv')
 		# Arrived_to.to_csv('Cars Arrived To.csv') 
 		OD = pd.DataFrame(OD)
-		OD.to_csv('OriginDestination_Matrix.csv')
+		OD.to_csv('File/OriginDestination_Matrix.csv')
 		# print(OD)
 		# exit()
 		# OriginDestination = pd.DataFrame(OD)
-		# OriginDestination.to_excel('OriginDestination_Matrix.xlsx')
+		# OriginDestination.to_excel('File/OriginDestination_Matrix.xlsx')
 
 	def closest_to(self, O, D, lat_min=45.01089, long_min=7.60679, n=20):
 		z = np.linspace(0,0.14,n)
